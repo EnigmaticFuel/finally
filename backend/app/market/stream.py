@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Request
@@ -14,14 +15,17 @@ from .cache import PriceCache
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/stream", tags=["streaming"])
+POLL_INTERVAL = 0.5  # How often the generator looks at the cache
+HEARTBEAT_INTERVAL = 15.0  # Comment frame cadence, price activity or not
 
 
 def create_stream_router(price_cache: PriceCache) -> APIRouter:
-    """Create the SSE streaming router with a reference to the price cache.
+    """Build the /api/stream router bound to a specific cache.
 
-    This factory pattern lets us inject the PriceCache without globals.
+    The router is created inside the factory, not at module level, so calling
+    this twice (an app plus a test app) does not register the route twice.
     """
+    router = APIRouter(prefix="/api/stream", tags=["streaming"])
 
     @router.get("/prices")
     async def stream_prices(request: Request) -> StreamingResponse:
@@ -51,37 +55,44 @@ def create_stream_router(price_cache: PriceCache) -> APIRouter:
 async def _generate_events(
     price_cache: PriceCache,
     request: Request,
-    interval: float = 0.5,
+    interval: float = POLL_INTERVAL,
+    heartbeat: float = HEARTBEAT_INTERVAL,
 ) -> AsyncGenerator[str, None]:
-    """Async generator that yields SSE-formatted price events.
+    """Yield SSE frames until the client disconnects.
 
-    Sends all prices every `interval` seconds. Stops when the client
-    disconnects (detected via request.is_disconnected()).
+    Emits one data event carrying every tracked ticker, keyed by symbol, and
+    only when the cache version has moved. A heartbeat comment goes out every
+    `heartbeat` seconds regardless, so silence is legible to the frontend.
     """
+    client = request.client.host if request.client else "unknown"
+    logger.info("SSE client connected: %s", client)
+
     # Tell the client to retry after 1 second if the connection drops
     yield "retry: 1000\n\n"
 
     last_version = -1
-    client_ip = request.client.host if request.client else "unknown"
-    logger.info("SSE client connected: %s", client_ip)
+    last_beat = time.monotonic()
 
     try:
         while True:
-            # Check for client disconnect
             if await request.is_disconnected():
-                logger.info("SSE client disconnected: %s", client_ip)
+                logger.info("SSE client disconnected: %s", client)
                 break
 
-            current_version = price_cache.version
-            if current_version != last_version:
-                last_version = current_version
+            version = price_cache.version
+            if version != last_version:
+                last_version = version
                 prices = price_cache.get_all()
-
                 if prices:
-                    data = {ticker: update.to_dict() for ticker, update in prices.items()}
-                    payload = json.dumps(data)
-                    yield f"data: {payload}\n\n"
+                    payload = {ticker: update.to_dict() for ticker, update in prices.items()}
+                    yield f"data: {json.dumps(payload)}\n\n"
+
+            now = time.monotonic()
+            if now - last_beat >= heartbeat:
+                yield ": ping\n\n"
+                last_beat = now
 
             await asyncio.sleep(interval)
     except asyncio.CancelledError:
-        logger.info("SSE stream cancelled for: %s", client_ip)
+        logger.info("SSE stream cancelled: %s", client)
+        raise

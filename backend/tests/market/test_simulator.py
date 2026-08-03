@@ -1,6 +1,10 @@
 """Tests for GBMSimulator."""
 
-from app.market.seed_prices import SEED_PRICES
+from unittest.mock import patch
+
+import numpy as np
+
+from app.market.seed_prices import SEED_PRICES, synthesize_params
 from app.market.simulator import GBMSimulator
 
 
@@ -52,12 +56,18 @@ class TestGBMSimulator:
         sim = GBMSimulator(tickers=["AAPL"])
         sim.remove_ticker("NOPE")  # Should not raise
 
-    def test_unknown_ticker_gets_random_seed_price(self):
-        """Test that unknown tickers get random seed prices."""
-        sim = GBMSimulator(tickers=["ZZZZ"])
-        price = sim.get_price("ZZZZ")
+    def test_unknown_ticker_gets_synthesized_price(self):
+        """Unknown tickers get a deterministic price in the plausible large-cap range."""
+        sim = GBMSimulator(tickers=["ZZZZZ"])
+        price = sim.get_price("ZZZZZ")
         assert price is not None
-        assert 50.0 <= price <= 300.0
+        assert 20.0 <= price <= 500.0
+
+    def test_unknown_ticker_price_is_deterministic(self):
+        """Restarting the process must not reprice a held position."""
+        sim_a = GBMSimulator(tickers=["PYPL"])
+        sim_b = GBMSimulator(tickers=["PYPL"])
+        assert sim_a.get_price("PYPL") == sim_b.get_price("PYPL")
 
     def test_empty_step(self):
         """Test stepping with no tickers."""
@@ -89,6 +99,16 @@ class TestGBMSimulator:
         sim = GBMSimulator(tickers=["AAPL"])
         assert sim._cholesky is None
 
+    def test_cholesky_failure_degrades_to_independent_draws(self):
+        """A non positive-definite matrix must not take the whole feed down."""
+        sim = GBMSimulator(tickers=["AAPL", "GOOGL"])
+        with patch("numpy.linalg.cholesky", side_effect=np.linalg.LinAlgError("singular")):
+            sim._rebuild_cholesky()
+        assert sim._cholesky is None
+        # The simulator keeps working with independent draws.
+        result = sim.step()
+        assert set(result.keys()) == {"AAPL", "GOOGL"}
+
     def test_get_price_returns_none_for_unknown(self):
         """Test that get_price returns None for unknown ticker."""
         sim = GBMSimulator(tickers=["AAPL"])
@@ -105,7 +125,7 @@ class TestGBMSimulator:
         assert corr == 0.5
 
     def test_pairwise_correlation_tsla(self):
-        """Test that TSLA has lower correlation with everything."""
+        """TSLA is deliberately outside both sector groups."""
         corr = GBMSimulator._pairwise_correlation("TSLA", "AAPL")
         assert corr == 0.3
         corr = GBMSimulator._pairwise_correlation("TSLA", "JPM")
@@ -126,6 +146,48 @@ class TestGBMSimulator:
         result = sim.step()
         price_str = str(result["AAPL"])
         # Check that we have at most 2 decimal places
-        if '.' in price_str:
-            decimal_part = price_str.split('.')[1]
+        if "." in price_str:
+            decimal_part = price_str.split(".")[1]
             assert len(decimal_part) <= 2
+
+    # --- History backfill ---
+
+    def test_backfill_returns_requested_points(self):
+        sim = GBMSimulator(tickers=["AAPL"])
+        history = sim.backfill_history("AAPL", points=60)
+        assert len(history) == 60
+
+    def test_backfill_ends_at_the_current_price(self):
+        sim = GBMSimulator(tickers=["AAPL"])
+        history = sim.backfill_history("AAPL")
+        assert history[-1] == sim.get_price("AAPL")
+
+    def test_backfill_is_oldest_first_and_all_positive(self):
+        sim = GBMSimulator(tickers=["AAPL"])
+        history = sim.backfill_history("AAPL", points=10)
+        assert len(history) == 10
+        assert all(p > 0 for p in history)
+
+    def test_backfill_unknown_ticker_returns_empty(self):
+        sim = GBMSimulator(tickers=["AAPL"])
+        assert sim.backfill_history("UNKNOWN") == []
+
+    def test_backfill_zero_points_returns_empty(self):
+        sim = GBMSimulator(tickers=["AAPL"])
+        assert sim.backfill_history("AAPL", points=0) == []
+
+
+class TestSynthesizeParams:
+    """Unit tests for the deterministic unknown-ticker parameter synthesis."""
+
+    def test_deterministic_across_calls(self):
+        assert synthesize_params("PYPL") == synthesize_params("PYPL")
+
+    def test_price_and_sigma_within_plausible_ranges(self):
+        price, params = synthesize_params("PYPL")
+        assert 20.0 <= price <= 500.0
+        assert 0.15 <= params["sigma"] <= 0.50
+        assert 0.02 <= params["mu"] <= 0.08
+
+    def test_different_tickers_get_different_params(self):
+        assert synthesize_params("AMD") != synthesize_params("DIS")

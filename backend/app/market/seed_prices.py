@@ -1,6 +1,10 @@
-"""Seed prices and per-ticker parameters for the market simulator."""
+"""Seed prices, GBM parameters and correlation groups for the simulator."""
 
-# Realistic starting prices for the default watchlist (as of project creation)
+from __future__ import annotations
+
+import hashlib
+
+# Recognisable rather than current. This is a simulation with pretend money.
 SEED_PRICES: dict[str, float] = {
     "AAPL": 190.00,
     "GOOGL": 175.00,
@@ -14,9 +18,7 @@ SEED_PRICES: dict[str, float] = {
     "NFLX": 600.00,
 }
 
-# Per-ticker GBM parameters
-# sigma: annualized volatility (higher = more price movement)
-# mu: annualized drift / expected return
+# sigma: annualised volatility. mu: annualised drift.
 TICKER_PARAMS: dict[str, dict[str, float]] = {
     "AAPL": {"sigma": 0.22, "mu": 0.05},
     "GOOGL": {"sigma": 0.25, "mu": 0.05},
@@ -30,18 +32,37 @@ TICKER_PARAMS: dict[str, dict[str, float]] = {
     "NFLX": {"sigma": 0.35, "mu": 0.05},
 }
 
-# Default parameters for tickers not in the list above (dynamically added)
-DEFAULT_PARAMS: dict[str, float] = {"sigma": 0.25, "mu": 0.05}
-
-# Correlation groups for the simulator's Cholesky decomposition
-# Tickers in the same group have higher intra-group correlation
+# Correlation groups. TSLA is deliberately in neither: nominally tech, famously
+# does its own thing, and its independence gives the watchlist texture.
 CORRELATION_GROUPS: dict[str, set[str]] = {
     "tech": {"AAPL", "GOOGL", "MSFT", "AMZN", "META", "NVDA", "NFLX"},
     "finance": {"JPM", "V"},
 }
 
-# Correlation coefficients
-INTRA_TECH_CORR = 0.6  # Tech stocks move together
-INTRA_FINANCE_CORR = 0.5  # Finance stocks move together
-CROSS_GROUP_CORR = 0.3  # Between sectors / unknown tickers
-TSLA_CORR = 0.3  # TSLA does its own thing
+INTRA_TECH_CORR = 0.6  # Tech names move together
+INTRA_FINANCE_CORR = 0.5  # Finance names move together
+CROSS_GROUP_CORR = 0.3  # Across sectors, TSLA, and synthesised tickers
+
+
+def synthesize_params(ticker: str) -> tuple[float, dict[str, float]]:
+    """Derive a stable seed price and GBM parameters from the symbol itself.
+
+    Deterministic by construction: SHA-256 of the symbol, never random. A user
+    holding 10 shares of PYPL bought at $73 must not restart the container and
+    find PYPL trading at $412 — their P&L would be nonsense.
+
+    Ranges are chosen so every synthesised ticker looks like an ordinary
+    large-cap: $20-$500, sigma 0.15-0.50, mu 0.02-0.08.
+    """
+    digest = hashlib.sha256(ticker.encode()).digest()
+    price = 20.0 + (int.from_bytes(digest[0:4], "big") % 48_000) / 100.0
+    sigma = 0.15 + (digest[4] / 255.0) * 0.35
+    mu = 0.02 + (digest[5] / 255.0) * 0.06
+    return round(price, 2), {"sigma": round(sigma, 4), "mu": round(mu, 4)}
+
+
+def params_for(ticker: str) -> tuple[float, dict[str, float]]:
+    """Seed price and GBM parameters for any well-formed ticker."""
+    if ticker in SEED_PRICES:
+        return SEED_PRICES[ticker], dict(TICKER_PARAMS[ticker])
+    return synthesize_params(ticker)
