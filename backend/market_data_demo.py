@@ -53,7 +53,6 @@ def format_price(price: float) -> str:
 
 def build_table(
     cache: PriceCache,
-    history: dict[str, deque],
     elapsed: float,
 ) -> Table:
     """Build the price table."""
@@ -68,7 +67,7 @@ def build_table(
     table.add_column("Ticker", style="bold bright_white", width=8)
     table.add_column("Price", justify="right", width=10)
     table.add_column("Change", justify="right", width=9)
-    table.add_column("Chg %", justify="right", width=8)
+    table.add_column("Chg % (open)", justify="right", width=12)
     table.add_column("", width=3)  # arrow
     table.add_column("Sparkline", width=42, no_wrap=True)
 
@@ -91,10 +90,12 @@ def build_table(
 
         price_str = f"[{color}]${format_price(update.price)}[/]"
         change_str = f"[{color}]{update.change:+.2f}[/]"
-        pct_str = f"[{color}]{update.change_percent:+.2f}%[/]"
+        # The user-facing "change %" column compares against the session open,
+        # not the previous tick \u2014 see PLAN.md section 6.
+        pct_str = f"[{color}]{update.change_from_open_percent:+.2f}%[/]"
 
-        # Sparkline from history
-        vals = list(history.get(ticker, []))
+        # Sparkline straight from the cache's own backfilled/live history
+        vals = cache.get_history(ticker)
         spark_str = f"[bright_cyan]{sparkline(vals)}[/]" if len(vals) > 1 else ""
 
         table.add_row(ticker, price_str, change_str, pct_str, arrow, spark_str)
@@ -120,7 +121,6 @@ def build_event_log(events: deque) -> Panel:
 
 def build_dashboard(
     cache: PriceCache,
-    history: dict[str, deque],
     events: deque,
     start_time: float,
 ) -> Layout:
@@ -153,7 +153,7 @@ def build_dashboard(
     # Body: price table
     layout["body"].update(
         Panel(
-            build_table(cache, history, elapsed),
+            build_table(cache, elapsed),
             title="[bold bright_white]Live Prices[/]",
             border_style="bright_black",
         )
@@ -209,24 +209,15 @@ async def run() -> None:
     cache = PriceCache()
     source = SimulatorDataSource(price_cache=cache, update_interval=0.5)
 
-    # Per-ticker price history for sparklines
-    history: dict[str, deque] = {t: deque(maxlen=40) for t in TICKERS}
-
     # Recent event log
     events: deque = deque(maxlen=12)
 
     await source.start(TICKERS)
     start_time = time.time()
 
-    # Seed initial history points
-    for ticker in TICKERS:
-        update = cache.get(ticker)
-        if update:
-            history[ticker].append(update.price)
-
     try:
         with Live(
-            build_dashboard(cache, history, events, start_time),
+            build_dashboard(cache, events, start_time),
             refresh_per_second=4,
             screen=True,
         ) as live:
@@ -239,14 +230,12 @@ async def run() -> None:
                     continue
                 last_version = cache.version
 
-                # Record history & detect events
+                # Detect notable moves for the event log
                 for ticker in TICKERS:
                     update = cache.get(ticker)
                     if update is None:
                         continue
-                    history[ticker].append(update.price)
 
-                    # Log notable moves
                     if abs(update.change_percent) > 1.0:
                         direction = "\u25b2" if update.direction == "up" else "\u25bc"
                         color = "green" if update.direction == "up" else "red"
@@ -258,7 +247,7 @@ async def run() -> None:
                             f"${format_price(update.price)}"
                         )
 
-                live.update(build_dashboard(cache, history, events, start_time))
+                live.update(build_dashboard(cache, events, start_time))
 
     except KeyboardInterrupt:
         pass

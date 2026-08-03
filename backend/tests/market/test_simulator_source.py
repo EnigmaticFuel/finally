@@ -12,6 +12,11 @@ from app.market.simulator import SimulatorDataSource
 class TestSimulatorDataSource:
     """Integration tests for the SimulatorDataSource."""
 
+    async def test_source_name(self):
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache)
+        assert source.source_name == "simulator"
+
     async def test_start_populates_cache(self):
         """Test that start() immediately populates the cache."""
         cache = PriceCache()
@@ -21,6 +26,31 @@ class TestSimulatorDataSource:
         # Cache should have seed prices immediately (before first loop tick)
         assert cache.get("AAPL") is not None
         assert cache.get("GOOGL") is not None
+
+        await source.stop()
+
+    async def test_start_backfills_history(self):
+        """start() must seed sparkline history before returning."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start(["AAPL"])
+
+        history = cache.get_history("AAPL")
+        assert len(history) == 60
+        assert history[-1] == cache.get_price("AAPL")
+
+        await source.stop()
+
+    async def test_add_ticker_backfills_history(self):
+        """A ticker added after startup also gets seeded history, not silence."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start(["AAPL"])
+
+        await source.add_ticker("TSLA")
+        history = cache.get_history("TSLA")
+        assert len(history) == 60
+        assert history[-1] == cache.get_price("TSLA")
 
         await source.stop()
 
@@ -57,6 +87,25 @@ class TestSimulatorDataSource:
         assert "TSLA" in source.get_tickers()
         assert cache.get("TSLA") is not None
 
+        await source.stop()
+
+    async def test_add_ticker_before_start_is_noop(self):
+        """Adding before start() has no simulator to add to yet."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.add_ticker("AAPL")  # Should not raise
+        assert source.get_tickers() == []
+
+    async def test_add_duplicate_ticker_is_noop(self):
+        """Adding a ticker already tracked must not reset its history/price."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start(["AAPL"])
+        first_update = cache.get("AAPL")
+
+        await source.add_ticker("AAPL")
+
+        assert cache.get("AAPL") == first_update
         await source.stop()
 
     async def test_remove_ticker(self):
