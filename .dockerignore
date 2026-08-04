@@ -1,0 +1,45 @@
+# Keep the build context small and reproducible. Anything the image needs is
+# rebuilt inside it from a lockfile; nothing host-specific should leak in.
+
+.git
+.github
+.claude
+
+# Node
+**/node_modules
+**/.next
+**/out
+
+# Python
+**/.venv
+**/__pycache__
+**/*.py[codz]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.uv-cache
+backend/tests
+
+# Runtime data - the database arrives through the bind mount, never the image
+db/
+
+# Test artifacts
+test/
+test-results/
+playwright-report/
+
+# Secrets and local config - the container gets these via --env-file
+.env
+*.env
+!.env.example
+
+# Docs and tooling that do not belong in a runtime image
+planning/
+scripts/
+docker-compose.yml
+Dockerfile
+.dockerignore
+.gitignore
+README.md
+LICENSE
+**/CLAUDE.md

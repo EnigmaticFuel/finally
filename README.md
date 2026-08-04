@@ -1,81 +1,74 @@
-# FinAlly — AI Trading Workstation
+# FinAlly - AI Trading Workstation
 
 A Bloomberg-style trading terminal with an AI copilot: live streaming prices, a simulated
-$10k portfolio, and an LLM chat assistant that can analyse positions and execute trades from
+$10,000 portfolio, and an LLM chat assistant that analyses positions and executes trades from
 natural language.
 
 Built entirely by coding agents as the capstone project for an agentic AI coding course.
-Agents coordinate through the shared documents in `planning/`.
 
-## Status
+## Prerequisites
 
-Market data subsystem is complete and tested (73 tests). The rest of the platform is in
-development.
+Docker Desktop, running. Nothing else - Node and Python live inside the image.
 
-| Component | State |
-|---|---|
-| Market data (simulator, Massive client, price cache, SSE stream) | Built |
-| Database, portfolio and watchlist APIs | Planned |
-| Next.js frontend, charts, chat panel | Planned |
-| Docker image and start/stop scripts | Planned |
+## Start
 
-## Architecture
-
-One container, one port. FastAPI serves the REST API, the SSE price stream, and the exported
-Next.js frontend as static files on port 8000.
-
-- **Backend** — FastAPI, Python 3.12, managed with `uv`
-- **Frontend** — Next.js static export, TypeScript, Tailwind, Recharts
-- **Database** — SQLite at `db/finally.db`, lazily created and seeded
-- **Real-time** — Server-Sent Events, one event per tick carrying every tracked ticker
-- **AI** — LiteLLM to OpenRouter (Cerebras inference) with structured outputs
-- **Market data** — built-in GBM simulator by default, Massive (Polygon.io) if a key is set
-
-## Running the Market Data Demo
-
-A Rich terminal dashboard of the live simulated price stream:
+macOS / Linux:
 
 ```bash
-cd backend
-uv sync --dev
-uv run market_data_demo.py
+./scripts/start_mac.sh
 ```
 
-## Tests
+Windows PowerShell:
+
+```powershell
+.\scripts\start_windows.ps1
+```
+
+The script creates `.env` from `.env.example` if you have none, builds the image on first run,
+starts the container and opens <http://localhost:8000>. Pass `--build` (`-Build` on Windows) to
+force a rebuild after changing the code.
+
+## Stop
 
 ```bash
-cd backend
-uv run pytest
-uv run ruff check .
+./scripts/stop_mac.sh          # macOS / Linux
+.\scripts\stop_windows.ps1     # Windows
 ```
 
-## Environment Variables
+Stopping removes the container and leaves your data alone.
 
-Create `.env` in the project root. Every variable is optional — with none set, the app runs on
-the simulator and chat reports that no API key is configured.
+## API keys
 
-| Variable | Description |
+All optional. Edit `.env`:
+
+| Variable | Effect |
 |---|---|
-| `OPENROUTER_API_KEY` | Enables the AI chat panel |
-| `MASSIVE_API_KEY` | Use real market data instead of the simulator |
-| `LLM_MOCK` | Set `true` for deterministic mock LLM responses in tests |
+| `OPENROUTER_API_KEY` | Enables the AI chat panel. Without it every other feature works and chat replies that no key is configured. |
+| `MASSIVE_API_KEY` | Uses real Polygon.io market data. Leave blank for the built-in simulator, which is the recommended default - real quotes are flat outside market hours. |
+| `LLM_MOCK` | `true` gives deterministic mock LLM responses, used by the end-to-end tests. |
 
-## Project Structure
+Restart the container after editing `.env`.
 
+## The database
+
+SQLite, at `db/finally.db` in this directory, bind-mounted into the container. It is created and
+seeded on first launch and survives restarts. To reset your portfolio to $10,000 and the default
+watchlist, stop the app, delete the file and start again.
+
+## Development
+
+```bash
+cd backend && uv run --extra dev pytest    # backend tests
+cd frontend && npm test                    # frontend tests
+npx playwright test                        # end-to-end, against a running container
 ```
-finally/
-├── backend/     # FastAPI uv project (app/market/ is built)
-├── frontend/    # Next.js static export
-├── planning/    # PLAN.md and agent reference docs
-├── test/        # Playwright E2E tests, run on the host
-├── scripts/     # Docker start/stop helpers
-└── db/          # SQLite bind mount at runtime
-```
+
+`docker compose up --build` is an equivalent alternative to the start scripts.
 
 ## Documentation
 
-- `planning/PLAN.md` — the full specification and the authority for all agent work
-- `planning/MARKET_DATA_SUMMARY.md` — what the market data subsystem does and how
+- `planning/PLAN.md` - the full specification and the authority for all agent work
+- `planning/TEAM.md` - the engineering contract between the agents
 
 ## License
 

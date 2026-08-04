@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #0d1117;
+  --color-panel: #131a24;
+  --color-rail: #182130;
+  --color-raise: #1d2735;
+  --color-line: #232e3d;
+  --color-line2: #33415a;
+
+  --color-ink: #dbe3ee;
+  --color-muted: #7f8b9e;
+  --color-dim: #4f5a6b;
+
+  --color-up: #26c281;
+  --color-down: #f0454b;
+
+  --color-gold: #ecad0a;
+  --color-azure: #209dd7;
+  --color-plum: #753991;
+
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono",
+    "Roboto Mono", Menlo, Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+
+/* Price flash. The class is applied on change and removed after 500ms so the
+   animation re-triggers on every tick. */
+.flash-up {
+  animation: flash-up 500ms ease-out;
+}
+
+.flash-down {
+  animation: flash-down 500ms ease-out;
+}
+
+@keyframes flash-up {
+  from {
+    background-color: color-mix(in srgb, var(--color-up) 32%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-down {
+  from {
+    background-color: color-mix(in srgb, var(--color-down) 32%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-up,
+  .flash-down {
+    animation-duration: 1ms;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-void);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-line2);
+}
+
+:focus-visible {
+  outline: 1px solid var(--color-azure);
+  outline-offset: 1px;
+}

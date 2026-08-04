@@ -205,3 +205,21 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# SQLite database and its write-ahead log companions.
+# db/.gitkeep stays tracked so the bind mount target exists in a fresh clone.
+db/*.db
+db/*.db-wal
+db/*.db-shm
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/

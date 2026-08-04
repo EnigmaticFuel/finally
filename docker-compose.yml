@@ -1,0 +1,22 @@
+# Optional convenience wrapper. The start scripts and a plain docker run do the
+# same thing; this is here for anyone who prefers compose.
+#
+#   docker compose up --build
+#   docker compose down
+#
+# Requires a .env file in this directory - copy .env.example if you have none.
+
+services:
+  finally:
+    build: .
+    image: finally
+    container_name: finally
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Bind mount, not a named volume: the database file is meant to be
+      # visible, inspectable and deletable from the host.
+      - ./db:/app/db
+    restart: unless-stopped
