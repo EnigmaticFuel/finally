@@ -167,17 +167,118 @@ Deferred. Tracked but not in the current roadmap.
 
 ## Traceability
 
-Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| _(pending roadmap)_ | — | — |
+| SETUP-01 | Phase 1 | Pending |
+| SETUP-02 | Phase 1 | Pending |
+| SETUP-03 | Phase 1 | Pending |
+| SETUP-04 | Phase 1 | Pending |
+| SETUP-05 | Phase 1 | Pending |
+| SETUP-06 | Phase 1 | Pending |
+| CORE-01 | Phase 1 | Pending |
+| CORE-02 | Phase 1 | Pending |
+| CORE-03 | Phase 1 | Pending |
+| CORE-04 | Phase 1 | Pending |
+| CORE-05 | Phase 1 | Pending |
+| CORE-06 | Phase 1 | Pending |
+| CORE-07 | Phase 1 | Pending |
+| CORE-08 | Phase 1 | Pending |
+| CORE-09 | Phase 1 | Pending |
+| CORE-10 | Phase 1 | Pending |
+| TEST-01 | Phase 1 | Pending |
+| DOCK-01 | Phase 2 | Pending |
+| DOCK-03 | Phase 2 | Pending |
+| DOCK-04 | Phase 2 | Pending |
+| DOCK-05 | Phase 2 | Pending |
+| DOCK-06 | Phase 2 | Pending |
+| DOCK-07 | Phase 2 | Pending |
+| PORT-01 | Phase 3 | Pending |
+| PORT-02 | Phase 3 | Pending |
+| PORT-03 | Phase 3 | Pending |
+| PORT-04 | Phase 3 | Pending |
+| PORT-05 | Phase 3 | Pending |
+| PORT-06 | Phase 3 | Pending |
+| PORT-07 | Phase 3 | Pending |
+| PORT-08 | Phase 3 | Pending |
+| PORT-09 | Phase 3 | Pending |
+| PORT-10 | Phase 3 | Pending |
+| PORT-11 | Phase 3 | Pending |
+| PORT-12 | Phase 3 | Pending |
+| PORT-13 | Phase 3 | Pending |
+| PORT-14 | Phase 3 | Pending |
+| WATCH-01 | Phase 3 | Pending |
+| WATCH-02 | Phase 3 | Pending |
+| WATCH-03 | Phase 3 | Pending |
+| WATCH-04 | Phase 3 | Pending |
+| WATCH-05 | Phase 3 | Pending |
+| WATCH-06 | Phase 3 | Pending |
+| TEST-02 | Phase 3 | Pending |
+| UI-01 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Pending |
+| UI-04 | Phase 4 | Pending |
+| UI-05 | Phase 4 | Pending |
+| UI-06 | Phase 4 | Pending |
+| UI-07 | Phase 4 | Pending |
+| UI-08 | Phase 4 | Pending |
+| UI-09 | Phase 4 | Pending |
+| UI-10 | Phase 4 | Pending |
+| UI-11 | Phase 4 | Pending |
+| UI-12 | Phase 4 | Pending |
+| UI-13 | Phase 4 | Pending |
+| UI-14 | Phase 4 | Pending |
+| UI-15 | Phase 4 | Pending |
+| UI-16 | Phase 4 | Pending |
+| CHART-01 | Phase 5 | Pending |
+| CHART-02 | Phase 5 | Pending |
+| CHART-03 | Phase 5 | Pending |
+| CHART-04 | Phase 5 | Pending |
+| CHART-05 | Phase 5 | Pending |
+| CHART-06 | Phase 5 | Pending |
+| CHAT-01 | Phase 6 | Pending |
+| CHAT-02 | Phase 6 | Pending |
+| CHAT-03 | Phase 6 | Pending |
+| CHAT-04 | Phase 6 | Pending |
+| CHAT-05 | Phase 6 | Pending |
+| CHAT-06 | Phase 6 | Pending |
+| CHAT-07 | Phase 6 | Pending |
+| CHAT-08 | Phase 6 | Pending |
+| CHAT-09 | Phase 6 | Pending |
+| CHAT-10 | Phase 6 | Pending |
+| CHAT-11 | Phase 6 | Pending |
+| CHAT-12 | Phase 6 | Pending |
+| CHAT-13 | Phase 6 | Pending |
+| CHAT-14 | Phase 6 | Pending |
+| TEST-03 | Phase 6 | Pending |
+| DOCK-02 | Phase 7 | Pending |
+| TEST-04 | Phase 7 | Pending |
+| TEST-05 | Phase 7 | Pending |
+| TEST-06 | Phase 7 | Pending |
+| TEST-07 | Phase 7 | Pending |
+| TEST-08 | Phase 7 | Pending |
+| TEST-09 | Phase 7 | Pending |
+| TEST-10 | Phase 7 | Pending |
+| TEST-11 | Phase 7 | Pending |
+| TEST-12 | Phase 7 | Pending |
+| TEST-13 | Phase 7 | Pending |
+| TEST-14 | Phase 7 | Pending |
+| TEST-15 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 94 total
-- Mapped to phases: 0
-- Unmapped: 94 ⚠️
+- Mapped to phases: 94 ✓
+- Unmapped: 0
+
+### Cross-Phase Seams
+
+Three requirements are owned by one phase but visibly completed by the next. Recorded here so neither phase treats the other's half as already done:
+
+| Requirement | Owned by | Completed by |
+|-------------|----------|--------------|
+| UI-03 (watchlist row incl. sparkline) | Phase 4 — the row layout and its data plumbing | Phase 5 — the sparkline itself (CHART-02) |
+| UI-13 (refetch rule) | Phase 4 — the manual-trade path | Phase 6 — extended to chat responses with non-empty actions |
+| UI-14 (click-to-select) | Phase 4 — the selection state | Phase 5 — the main chart that consumes it (CHART-01) |
 
 ---
 *Requirements defined: 2026-08-05*
-*Last updated: 2026-08-05 after initial definition*
+*Last updated: 2026-08-05 after roadmap creation*
