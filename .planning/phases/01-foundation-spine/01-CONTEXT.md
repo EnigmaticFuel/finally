@@ -75,6 +75,22 @@ This phase assembles the FastAPI application for the first time and lands the en
 
 - **D-22:** Tests point the app at the throwaway database by overriding the FastAPI DB dependency in a conftest fixture built around `create_app()`. Not by monkeypatching `FINALLY_DB_PATH`, which would depend on import-time ordering in `config.py` and is fragile across test sessions. Phase 3's route tests reuse this fixture verbatim.
 
+### Resolved during planning (from 01-RESEARCH.md)
+
+D-23 and D-24 are user decisions taken at the `/gsd-plan-phase` research gate. D-25 through D-28 close gaps the researcher found that no requirement names; each one blocks or degrades a stated success criterion.
+
+- **D-23:** The tracked `db/finally.db` is replaced with a freshly-seeded database — six tables plus the standard seed ($10,000 cash, the ten default tickers, one portfolio snapshot). The file stays tracked, so the accepted risk in PROJECT.md is untouched. Rationale: the file currently ships a used session ($6,200.01, 12 tickers, 4 positions, 46 trades, 26 chat messages), so a fresh clone never runs CORE-04's lazy seed and never shows PLAN.md section 2's promised first launch. CONTEXT.md forbids *untracking* the file, not *rewriting its contents*. Unblocks TEST-06 in Phase 7.
+
+- **D-24:** SETUP-06's gate is "no new test failures relative to the pre-phase baseline", not a literal 154/154. `tests/market/test_simulator.py::test_custom_update_interval` fails roughly 3 runs in 10 on the *unmodified current* environment — a pre-existing timing flake, not a FastAPI-bump regression. Nothing under `tests/market/` is modified to chase it; the flake is recorded as tolerated so the executor does not hunt a phantom regression next to the frozen module.
+
+- **D-25:** `httpx>=0.28.0` is declared in `[project.optional-dependencies].dev`. D-21's SSE integration test cannot run from a clean `uv sync --frozen --extra dev` without it — it currently imports only as a transitive dependency of `litellm`, which is invisible and fragile.
+
+- **D-26:** `FINALLY_DB_PATH` is documented in `.env.example` alongside the three variables SETUP-04 names, with its local default and the Docker value `/app/db/finally.db`. Phase 2's Dockerfile and start scripts depend on that exact name.
+
+- **D-27:** `db/*.db-wal` and `db/*.db-shm` are added to `.gitignore`. Enabling WAL (D-03) creates these sidecars; neither is currently ignored, so both would be committed on the next `git add .` and then OneDrive-synced, which is itself a corruption vector. This ignores only the sidecars and does not untrack `db/finally.db`.
+
+- **D-28:** `backend/.python-version` is committed containing `3.12`, matching the Docker target. The dev venv currently runs Python 3.14.6 against a `>=3.12` floor, and that divergence already shows as 154 deprecation warnings from `tests/conftest.py`. Pinning removes a class of "works locally, fails in the container" defects before Phase 2 builds the image.
+
 ### Claude's Discretion
 
 The user selected the recommended option in every question, so no area was explicitly delegated. Left to the planner and executor: internal module decomposition beyond the file names fixed above, the exact wording of docstrings and log messages, and the mechanics of the SETUP-03 `.gitattributes` renormalization.
