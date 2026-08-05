@@ -103,6 +103,8 @@ It is the capstone project for an agentic AI coding course — built entirely by
 | Cloud deployment excluded | Local Docker is the deliverable; deploy work adds infrastructure surface with no demo value | — Pending |
 | No hard deadline — quality over speed | User chose to build it properly rather than rush a vertical slice | — Pending |
 | Market data subsystem is frozen as Validated | Complete, tested, and audited; downstream phases build against its contract rather than changing it | ✓ Good |
+| Project stays inside OneDrive; `db/` bind mount unchanged | User accepted the risk after it was raised. SQLite on a Windows Docker Desktop bind mount is a documented `database is locked` generator (POSIX advisory locking does not work over 9p/drvfs), and OneDrive independently syncs the live `.db` plus its `-wal`/`-shm` sidecars. No phase should plan a relocation | ⚠️ Revisit — if `database is locked` appears during the DB phase, this is the cause |
+| `db/finally.db` stays tracked in git | User accepted the risk after it was raised. Consequences: every trade produces a binary diff, and branch switches overwrite the live database. Note that PLAN.md section 4 claims this file is gitignored — that claim is factually wrong and should not be trusted by any agent | ⚠️ Revisit |
 
 ## Evolution
 
