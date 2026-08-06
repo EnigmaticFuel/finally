@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-08-06T22:21:51.523Z",
+  "phase": "02",
+  "phase_name": "Walking-Skeleton Container",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "boundary": "phase_transition",
+  "completed_tasks": [
+    {"id": 1, "name": "Phase 1 UAT — 6 human verification items", "status": "done", "commit": "efec033"},
+    {"id": 2, "name": "Correct flake node ID in 01-CONTEXT.md D-24 and 01-VALIDATION.md", "status": "done", "commit": "efec033"},
+    {"id": 3, "name": "Refresh 01-VALIDATION.md tracking state to validated", "status": "done", "commit": "efec033"},
+    {"id": 4, "name": "Security review — 01-SECURITY.md, threats_open 0", "status": "done", "commit": "d854ca5"},
+    {"id": 5, "name": "Phase 1 transition — ROADMAP, STATE, PROJECT evolution", "status": "done", "commit": "e46be01"}
+  ],
+  "remaining_tasks": [
+    {"id": 6, "name": "Discuss Phase 2 (Walking-Skeleton Container) — no CONTEXT.md exists yet", "status": "not_started"},
+    {"id": 7, "name": "Plan Phase 2", "status": "not_started"},
+    {"id": 8, "name": "Execute Phase 2", "status": "not_started"}
+  ],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {
+      "action": "Decide whether to disable FastAPI /docs, /redoc, /openapi.json in the container image",
+      "context": "T-1-18 / R-05 in 01-SECURITY.md. Currently served by default. Low severity for a localhost app, so it did not block Phase 1, but the container image is where the decision lands.",
+      "blocking": false
+    },
+    {
+      "action": "Decide whether the api-coverage gate should be honored in Phase 6",
+      "context": "The gate blocked Phase 1 verification and was overridden as a false positive — it matches the surface nouns 'api' and 'rest'. Phase 6 (OpenRouter chat) is the first phase with genuine external-API integration, where a COVERAGE.md would be real work rather than ceremony.",
+      "blocking": false
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Overrode the api-coverage verify:pre gate for Phase 1",
+      "rationale": "Phase 1 integrates no external API — it assembles create_app(), the DB layer and /api/health, and mounts the pre-existing market SSE router. The Massive REST client predates the phase and litellm is declared but never called. Recorded in 01-UAT.md frontmatter under gate_overrides.",
+      "phase": "01"
+    },
+    {
+      "decision": "Accepted two flagged prohibitions without wired guards",
+      "rationale": "trades append-only (TEST-01) and the db/finally.db rewrite gate (CORE-04) are both correct in current state but enforced by inspection and procedure rather than by test. Logged as R-03/R-04 in 01-SECURITY.md.",
+      "phase": "01"
+    },
+    {
+      "decision": "Applied the flake node ID correction rather than recording a pass over a stale artifact",
+      "rationale": "UAT test 5 asserted the correction was present; it was not. 01-CONTEXT.md D-24 and 01-VALIDATION.md still named tests/market/test_simulator.py::test_custom_update_interval, which collects zero tests.",
+      "phase": "01"
+    },
+    {
+      "decision": "Corrected STATE.md total_phases from 1 to 7",
+      "rationale": "phase.complete propagated a stale total, which would have shown the milestone as 100% complete after one of seven phases.",
+      "phase": "01"
+    }
+  ],
+  "uncommitted_files": [
+    ".claude/settings.local.json"
+  ],
+  "next_action": "Run /gsd-discuss-phase 2 — Phase 2 has no CONTEXT.md, so discussion comes before planning.",
+  "context_notes": "Clean phase boundary. Phase 1 is fully closed: 5/5 plans, 6/6 UAT passed, verification passed, security threats_open 0, ROADMAP and STATE advanced to Phase 2. Nothing is mid-flight. The full backend suite was green at pause time (243 passed, 0 failed, 7.48s) and ruff was clean. The only uncommitted file is a harness settings file, not phase work. Phase 2 is the walking-skeleton container: one container on port 8000 with a persistent database, deliberately sequenced early because single-origin static serving is the highest-risk integration point in this architecture."
+}
