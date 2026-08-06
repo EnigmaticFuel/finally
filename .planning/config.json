@@ -2,6 +2,12 @@
   "mode": "interactive",
   "granularity": "standard",
   "model_profile": "quality",
+  "models": {
+    "planning": "opus",
+    "research": "opus",
+    "execution": "opus",
+    "verification": "opus"
+  },
   "commit_docs": true,
   "parallelization": true,
   "search_gitignored": false,
@@ -51,7 +57,8 @@
     "security_block_on": "high",
     "ui_review": true,
     "tdd_mode": false,
-    "use_worktrees": true
+    "use_worktrees": true,
+    "_auto_chain_active": false
   },
   "ship": {
     "pr_body_sections": [
