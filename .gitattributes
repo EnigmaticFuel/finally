@@ -1,0 +1,24 @@
+# Line endings are enforced here, by git, rather than by each developer's
+# core.autocrlf setting. An editor config cannot do this repo-wide.
+
+# Baseline: normalize text content to LF in the index.
+* text=auto
+
+# Checked out with LF on every platform. A .sh or a Dockerfile checked out with
+# CRLF fails on macOS and Linux with a bad interpreter error on the shebang
+# line, which is the specific failure this rule exists to prevent.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+
+# Checked out with CRLF, for the Windows PowerShell and batch entry points.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# No end-of-line conversion on checkin or checkout. db/finally.db is a tracked
+# binary SQLite file; a bare text=auto would invite git to inspect and convert
+# byte sequences inside it, so this exclusion ships in the same commit as the
+# baseline above and never after it.
+*.db -text
+*.png -text
