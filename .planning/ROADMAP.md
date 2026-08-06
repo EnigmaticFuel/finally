@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. `uv sync --frozen` from the committed lockfile produces an environment where the chat dependencies import cleanly and all 154 existing market-data tests still pass.
   5. A fresh clone carries `.env.example` and a `.gitattributes` that keeps `.sh`/`Dockerfile` at LF and `.ps1` at CRLF, and no stale `__pycache__` trees remain under `backend/`.
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 Plans:
 **Wave 1**
@@ -56,7 +56,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 01-05-PLAN.md — Freshly seeded tracked `db/finally.db` (one-way, gated) and the dependency-change regression gate
+- [x] 01-05-PLAN.md — Freshly seeded tracked `db/finally.db` (one-way, gated) and the dependency-change regression gate
 
 **Ordering constraint (load-bearing)**: `create_stream_router(cache)` requires the `PriceCache` to exist *before* `include_router()`, which happens before lifespan runs. `main.py` must therefore construct the cache and market source inside `create_app()`, not inside the lifespan handler. This is invisible in PLAN.md's build order and dictates the whole file's shape.
 
@@ -187,7 +187,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Spine | 4/5 | In Progress|  |
+| 1. Foundation & Spine | 5/5 | In Progress|  |
 | 2. Walking-Skeleton Container | 0/TBD | Not started | - |
 | 3. Portfolio & Watchlist APIs | 0/TBD | Not started | - |
 | 4. Frontend Shell | 0/TBD | Not started | - |
