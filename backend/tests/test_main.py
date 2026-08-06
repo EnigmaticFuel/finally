@@ -14,7 +14,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.main import DEFAULT_TICKERS, create_app
+from app.db.seed import DEFAULT_TICKERS
+from app.main import create_app
 from app.market import PriceCache
 
 STARTUP_TIMEOUT = 15.0
@@ -95,12 +96,16 @@ def test_create_app_builds_cache_before_routers(app: FastAPI) -> None:
 
 
 async def test_lifespan_starts_and_stops_source(app: FastAPI) -> None:
-    """Lifespan owns the market source: started on enter, stopped on exit."""
+    """Lifespan owns the market source: started on enter, stopped on exit.
+
+    The expected tickers come from app.db.seed, the same constant the database
+    seeds the watchlist with, so this also pins that the two cannot diverge.
+    """
     source = app.state.market_source
     assert source.get_tickers() == []
 
     async with app.router.lifespan_context(app):
-        assert source.get_tickers() == DEFAULT_TICKERS
+        assert source.get_tickers() == list(DEFAULT_TICKERS)
         assert "simulator-loop" in _running_task_names()
 
     assert "simulator-loop" not in _running_task_names()

@@ -228,6 +228,109 @@ def get_snapshots(
     ).fetchall()
 
 
+# --- Watchlist ---
+
+
+def get_watchlist(conn: sqlite3.Connection, user_id: str = DEFAULT_USER_ID) -> list[sqlite3.Row]:
+    """Every watched ticker, ordered by ticker.
+
+    Ordering here rather than at insertion time means the API returns the same
+    order however the list was built up.
+    """
+    return conn.execute(
+        "SELECT id, user_id, ticker, added_at FROM watchlist WHERE user_id = ? ORDER BY ticker",
+        (user_id,),
+    ).fetchall()
+
+
+def add_watchlist_ticker(
+    conn: sqlite3.Connection, ticker: str, user_id: str = DEFAULT_USER_ID
+) -> bool:
+    """Add a ticker to the watchlist, returning whether a row was added.
+
+    Already present is a no-op rather than an error, handled by the UNIQUE
+    (user_id, ticker) constraint so a concurrent duplicate cannot raise either.
+
+    This function is why the whole query surface lands in Phase 1: the trade
+    path calls it so that trading an unwatched ticker adds it to the watchlist,
+    which is what holds the invariant that every position has a live price feed.
+    """
+    cursor = conn.execute(
+        "INSERT INTO watchlist (id, user_id, ticker, added_at) VALUES (?, ?, ?, ?)"
+        " ON CONFLICT (user_id, ticker) DO NOTHING",
+        (str(uuid.uuid4()), user_id, normalize_ticker(ticker), _utc_now()),
+    )
+    return cursor.rowcount == 1
+
+
+def remove_watchlist_ticker(
+    conn: sqlite3.Connection, ticker: str, user_id: str = DEFAULT_USER_ID
+) -> bool:
+    """Remove a ticker from the watchlist, returning whether a row was removed.
+
+    False means the ticker was not watched, which the caller turns into a 404.
+    Refusing to remove a ticker the user holds a position in is a business rule
+    and lives at the service seam where the 409 is raised, not here.
+    """
+    cursor = conn.execute(
+        "DELETE FROM watchlist WHERE user_id = ? AND ticker = ?",
+        (user_id, normalize_ticker(ticker)),
+    )
+    return cursor.rowcount == 1
+
+
+def is_ticker_watched(
+    conn: sqlite3.Connection, ticker: str, user_id: str = DEFAULT_USER_ID
+) -> bool:
+    """Whether a ticker is currently on the watchlist."""
+    row = conn.execute(
+        "SELECT 1 FROM watchlist WHERE user_id = ? AND ticker = ?",
+        (user_id, normalize_ticker(ticker)),
+    ).fetchone()
+    return row is not None
+
+
+# --- Chat ---
+
+
+def insert_chat_message(
+    conn: sqlite3.Connection,
+    role: str,
+    content: str,
+    actions: str | None = None,
+    user_id: str = DEFAULT_USER_ID,
+) -> None:
+    """Append one chat message.
+
+    actions holds a JSON string for an assistant message that executed trades or
+    watchlist changes, and None - stored as SQL NULL - for a user message.
+    Serializing it is the caller's job, so this module never imports json.
+    """
+    conn.execute(
+        "INSERT INTO chat_messages (id, user_id, role, content, actions, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        (str(uuid.uuid4()), user_id, role, content, actions, _utc_now()),
+    )
+
+
+def get_chat_messages(
+    conn: sqlite3.Connection, limit: int = 100, user_id: str = DEFAULT_USER_ID
+) -> list[sqlite3.Row]:
+    """The most recent messages, returned oldest first.
+
+    The limit keeps the newest messages while the result reads oldest first,
+    which is the order the chat panel repopulates in after a reload. Hence the
+    subquery: newest-first to apply the limit, then flipped back.
+    """
+    return conn.execute(
+        "SELECT id, role, content, actions, created_at FROM ("
+        "  SELECT id, role, content, actions, created_at, rowid FROM chat_messages"
+        "  WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        ") ORDER BY created_at ASC, rowid ASC",
+        (user_id, limit),
+    ).fetchall()
+
+
 # --- Internal ---
 
 

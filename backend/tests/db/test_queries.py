@@ -15,18 +15,24 @@ import pytest
 from app.db.connection import connect
 from app.db.money import round_money, round_quantity
 from app.db.queries import (
+    add_watchlist_ticker,
     delete_position,
+    get_chat_messages,
     get_latest_snapshot,
     get_position,
     get_positions,
     get_profile,
     get_snapshots,
+    get_watchlist,
+    insert_chat_message,
     insert_snapshot,
     insert_trade,
+    is_ticker_watched,
+    remove_watchlist_ticker,
     update_cash_balance,
     upsert_position,
 )
-from app.db.seed import STARTING_CASH, apply_schema, seed_fresh
+from app.db.seed import DEFAULT_TICKERS, STARTING_CASH, apply_schema, seed_fresh
 
 
 @pytest.fixture
@@ -209,3 +215,101 @@ class TestSnapshots:
         """Without a filter the seed row is still there."""
         insert_snapshot(conn, 10100.0)
         assert len(get_snapshots(conn)) == 2
+
+
+class TestWatchlist:
+    """Adding, removing and asking about watched tickers."""
+
+    def test_seeded_watchlist_holds_the_default_tickers(self, conn: sqlite3.Connection) -> None:
+        """A fresh database watches exactly the ten defaults."""
+        assert {row["ticker"] for row in get_watchlist(conn)} == set(DEFAULT_TICKERS)
+
+    def test_get_watchlist_is_ordered_by_ticker(self, conn: sqlite3.Connection) -> None:
+        """The order is specified, not insertion-dependent."""
+        tickers = [row["ticker"] for row in get_watchlist(conn)]
+        assert tickers == sorted(tickers)
+
+    def test_add_returns_true_and_adds_a_row(self, conn: sqlite3.Connection) -> None:
+        """A new ticker becomes an eleventh row."""
+        assert add_watchlist_ticker(conn, "PYPL") is True
+        assert len(get_watchlist(conn)) == len(DEFAULT_TICKERS) + 1
+
+    def test_add_of_a_duplicate_returns_false_without_raising(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """Already present is a no-op, handled by the UNIQUE constraint."""
+        add_watchlist_ticker(conn, "PYPL")
+        assert add_watchlist_ticker(conn, "PYPL") is False
+        assert len(get_watchlist(conn)) == len(DEFAULT_TICKERS) + 1
+
+    def test_add_normalizes_the_ticker(self, conn: sqlite3.Connection) -> None:
+        """Lowercase input is stored uppercased, and a duplicate of the default."""
+        assert add_watchlist_ticker(conn, "pypl") is True
+        assert is_ticker_watched(conn, "PYPL") is True
+        assert add_watchlist_ticker(conn, "aapl") is False
+
+    def test_add_rejects_an_invalid_ticker(self, conn: sqlite3.Connection) -> None:
+        """A malformed symbol never reaches SQL."""
+        with pytest.raises(ValueError, match="Invalid ticker symbol"):
+            add_watchlist_ticker(conn, "TOOLONG")
+
+    def test_remove_returns_true_for_a_watched_ticker(self, conn: sqlite3.Connection) -> None:
+        """Removing a present ticker deletes its row."""
+        assert remove_watchlist_ticker(conn, "AAPL") is True
+        assert is_ticker_watched(conn, "AAPL") is False
+        assert len(get_watchlist(conn)) == len(DEFAULT_TICKERS) - 1
+
+    def test_remove_returns_false_for_an_unwatched_ticker(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """An absent ticker answers False rather than raising; the caller 404s."""
+        assert remove_watchlist_ticker(conn, "PYPL") is False
+
+    def test_is_ticker_watched_agrees_with_both(self, conn: sqlite3.Connection) -> None:
+        """The predicate tracks what add and remove actually did."""
+        assert is_ticker_watched(conn, "PYPL") is False
+        add_watchlist_ticker(conn, "PYPL")
+        assert is_ticker_watched(conn, "PYPL") is True
+        remove_watchlist_ticker(conn, "PYPL")
+        assert is_ticker_watched(conn, "PYPL") is False
+
+
+class TestChatMessages:
+    """Conversation history, oldest first."""
+
+    def test_user_message_stores_null_actions(self, conn: sqlite3.Connection) -> None:
+        """A user message has no actions, stored as SQL NULL."""
+        insert_chat_message(conn, "user", "How is my portfolio?")
+        row = get_chat_messages(conn)[0]
+        assert row["role"] == "user"
+        assert row["content"] == "How is my portfolio?"
+        assert row["actions"] is None
+
+    def test_assistant_actions_round_trip(self, conn: sqlite3.Connection) -> None:
+        """A JSON string comes back exactly as written."""
+        actions = '{"trades": [{"ticker": "AAPL", "side": "buy", "quantity": 1}]}'
+        insert_chat_message(conn, "assistant", "Bought 1 AAPL.", actions)
+        assert get_chat_messages(conn)[0]["actions"] == actions
+
+    def test_messages_come_back_oldest_first(self, conn: sqlite3.Connection) -> None:
+        """The panel repopulates in the order the conversation happened."""
+        for content in ("first", "second", "third"):
+            insert_chat_message(conn, "user", content)
+        assert [row["content"] for row in get_chat_messages(conn)] == [
+            "first",
+            "second",
+            "third",
+        ]
+
+    def test_limit_keeps_the_most_recent_messages(self, conn: sqlite3.Connection) -> None:
+        """The limit trims the oldest, not the newest, and order still reads forward."""
+        for content in ("first", "second", "third"):
+            insert_chat_message(conn, "user", content)
+        assert [row["content"] for row in get_chat_messages(conn, limit=2)] == [
+            "second",
+            "third",
+        ]
+
+    def test_empty_on_a_fresh_database(self, conn: sqlite3.Connection) -> None:
+        """Seeding writes no conversation."""
+        assert get_chat_messages(conn) == []
