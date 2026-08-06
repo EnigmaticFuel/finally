@@ -1,10 +1,10 @@
 """Concurrent writes against one file database: no lock errors, no lost updates.
 
 This is the direct proof of Phase 1 success criterion 3. Every database here is
-a real file under tmp_path, never :memory: - an in-memory database cannot
-exercise WAL, busy_timeout or genuine lock contention, and under
-connection-per-operation each in-memory connection would get its own empty
-database, so these tests would pass while proving nothing at all.
+a real file under tmp_path. An in-memory database cannot exercise WAL,
+busy_timeout or genuine lock contention, and under connection-per-operation each
+in-memory connection would get its own empty database, so these tests would pass
+while proving nothing at all.
 
 The load-bearing assertion is not "no errors". A design that silently loses
 updates raises nothing; what catches it is the final stored value equalling the
