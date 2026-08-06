@@ -38,12 +38,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. `uv sync --frozen` from the committed lockfile produces an environment where the chat dependencies import cleanly and all 154 existing market-data tests still pass.
   5. A fresh clone carries `.env.example` and a `.gitattributes` that keeps `.sh`/`Dockerfile` at LF and `.ps1` at CRLF, and no stale `__pycache__` trees remain under `backend/`.
 
-**Plans**: 5 plans
+**Plans**: 1/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Spine tracer: dependency floor, `create_app()`, health, live stream, static fallback, proven end to end over HTTP
+- [x] 01-01-PLAN.md — Spine tracer: dependency floor, `create_app()`, health, live stream, static fallback, proven end to end over HTTP
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -187,7 +187,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Spine | 0/TBD | Not started | - |
+| 1. Foundation & Spine | 1/5 | In Progress|  |
 | 2. Walking-Skeleton Container | 0/TBD | Not started | - |
 | 3. Portfolio & Watchlist APIs | 0/TBD | Not started | - |
 | 4. Frontend Shell | 0/TBD | Not started | - |
