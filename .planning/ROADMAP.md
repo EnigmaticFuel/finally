@@ -34,7 +34,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A snapshot write and a trade write running at the same time never produce `database is locked`, and selling an entire position leaves no residual fractional shares.
   4. `uv sync --frozen` from the committed lockfile produces an environment where the chat dependencies import cleanly and all 154 existing market-data tests still pass.
   5. A fresh clone carries `.env.example` and a `.gitattributes` that keeps `.sh`/`Dockerfile` at LF and `.ps1` at CRLF, and no stale `__pycache__` trees remain under `backend/`.
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Spine tracer: dependency floor, `create_app()`, health, live stream, static fallback, proven end to end over HTTP
+- [ ] 01-02-PLAN.md — SQLite foundation: money and quantity rounding, six-table schema, fresh-database seed, connection layer with WAL and the offload seam
+- [ ] 01-03-PLAN.md — Complete query surface for profile, positions, trades, snapshots, watchlist and chat, plus the threaded contention proof
+- [ ] 01-04-PLAN.md — Repo hygiene: `.gitattributes` and renormalization, `.env.example`, WAL sidecar ignores, stale bytecode cleanup
+- [ ] 01-05-PLAN.md — Freshly seeded tracked `db/finally.db` (one-way, gated) and the dependency-change regression gate
 
 **Ordering constraint (load-bearing)**: `create_stream_router(cache)` requires the `PriceCache` to exist *before* `include_router()`, which happens before lifespan runs. `main.py` must therefore construct the cache and market source inside `create_app()`, not inside the lifespan handler. This is invisible in PLAN.md's build order and dictates the whole file's shape.
 
