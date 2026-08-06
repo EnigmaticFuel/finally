@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 
+from app.db.connection import get_db_path
 from app.main import create_app
 
 
@@ -44,13 +45,14 @@ def db_path(tmp_path: Path) -> Path:
 def app(db_path: Path) -> FastAPI:
     """An app pointed at a throwaway database.
 
-    Plan 01-02 replaces the app.state assignment with
-    dependency_overrides[get_db_path] once that provider exists.
+    The path arrives by overriding the one dependency every route reads it
+    through, rather than by monkeypatching FINALLY_DB_PATH, which would depend
+    on import-time ordering in config.py.
 
     Lifespan has not run yet, so the cache is empty and the market source is
     unstarted. Tests needing a live feed drive the lifespan themselves or serve
     the app from uvicorn.
     """
     application = create_app()
-    application.state.db_path = db_path
+    application.dependency_overrides[get_db_path] = lambda: db_path
     return application
