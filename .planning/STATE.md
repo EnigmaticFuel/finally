@@ -2,43 +2,43 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 01
-current_phase_name: foundation-spine
-status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-08-06T10:45:54.336Z"
+current_phase: 2
+current_phase_name: Walking-Skeleton Container
+status: planning
+stopped_at: Phase 1 complete, ready to plan Phase 2
+last_updated: "2026-08-06T22:16:41.692Z"
 last_activity: 2026-08-06
-last_activity_desc: Phase 01 execution started
+last_activity_desc: Phase 01 complete, transitioned to Phase 2
 progress:
-  total_phases: 1
-  completed_phases: 0
+  total_phases: 7
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 5
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-05)
+See: .planning/PROJECT.md (updated 2026-08-06)
 
 **Core value:** The whole loop works as one experience: watch → trade → visualize → chat
-**Current focus:** Phase 01 — foundation-spine
+**Current focus:** Phase 2 — Walking-Skeleton Container
 
 ## Current Position
 
-Phase: 01 (foundation-spine) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 01
-Last activity: 2026-08-06 — Phase 01 execution started
+Phase: 2 — Walking-Skeleton Container
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-06 — Phase 01 complete, transitioned to Phase 2
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 14% (1/7 phases, 5 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 5
 - Average duration: —
 - Total execution time: 0.0 hours
 
@@ -46,7 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01 | 5 | - | - |
 
 **Recent Trend:**
 
@@ -67,17 +67,20 @@ Recent decisions affecting current work:
 - [Init]: Three additions beyond PLAN.md approved — Reset Portfolio (PORT-14), visible fill confirmation (UI-09), total return vs $10k (UI-11).
 - [Init]: Corrections accepted ([CORR] in REQUIREMENTS.md) — `app.frontend()` over ordered StaticFiles, flash-by-tick vs colour-by-open, "Chg from Open" labeling, `context.setOffline()` for the SSE E2E test, Node 24, `BEGIN IMMEDIATE` + epsilon money math, pinned provider routing, per-action chat status, single uvicorn worker.
 - [Init]: Done = a working end-to-end demo AND green pytest + Playwright suites. The live LLM path must work; `LLM_MOCK` is for E2E determinism only.
+- [Phase 1]: `app.frontend()` registered after both routers — the mount-order hazard is closed and proven by `test_api_not_shadowed` over real HTTP.
+- [Phase 1]: `BEGIN IMMEDIATE` on every write; the concurrency test asserts the final stored value, not just absence of errors.
+- [Phase 1]: Two prohibitions accepted without automated guards (trades append-only, db rewrite gate) — R-03/R-04 in `01-SECURITY.md`.
 
 ### Pending Todos
 
-None yet.
+- Decide whether to disable FastAPI's `/docs`, `/redoc`, `/openapi.json` in the container image (Phase 7). Currently served by default — T-1-18 / R-05 in `01-SECURITY.md`.
 
 ### Blockers/Concerns
 
-- **Accepted risk, not a task:** the project lives inside OneDrive and `db/finally.db` is tracked in git. If `database is locked` appears during Phase 1 or 2, this is the cause — diagnose it, but do not plan a relocation or an untracking. See PROJECT.md Key Decisions.
-- **Phase 1 ordering constraint:** `create_stream_router(cache)` needs the `PriceCache` constructed inside `create_app()` before `include_router()`, not inside lifespan.
-- **Phase 1 scope constraint:** all SQLite query functions — including `add_watchlist_ticker` — must land in Phase 1, or Phases 2 and 3 lose their independence and collide in `queries.py`.
+- **Accepted risk, not a task:** the project lives inside OneDrive and `db/finally.db` is tracked in git. If `database is locked` appears, this is the cause — diagnose it, but do not plan a relocation or an untracking. See PROJECT.md Key Decisions. *(Phase 1 saw no lock errors: the concurrency suite passes 6-way contention against a real file DB.)*
 - **Unverified:** live structured-output behaviour through OpenRouter → Cerebras. Spike it in Phase 6 before writing the chat router.
+- **[Phase 2] Deferred from Phase 1:** the lazy DB init is wired and proven, but nothing triggers it from an HTTP request yet — `run_db` has no app-side caller until Phase 3's routers land. The seam is complete; no further wiring needed.
+- **[Phase 6] The `api-coverage` gate was overridden as a false positive for Phase 1.** It fires on the surface nouns `api`/`rest`. Phase 6 is the first phase with genuine external-API integration, and the gate should be honored there.
 
 ## Deferred Items
 
@@ -89,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-05T21:25:36.022Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation-spine/01-CONTEXT.md
+Last session: 2026-08-06
+Stopped at: Phase 1 complete, ready to plan Phase 2
+Resume file: None

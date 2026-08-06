@@ -13,25 +13,25 @@ Requirements marked **[NEW]** are additions beyond PLAN.md, approved by the user
 
 ### Foundation
 
-- [ ] **SETUP-01**: `litellm`, `pydantic`, and `python-dotenv` are declared in `backend/pyproject.toml` and present in `uv.lock`, so `uv sync --frozen` produces a container whose chat endpoint imports successfully
-- [ ] **SETUP-02**: FastAPI floor is raised to `>=0.141.1` so `app.frontend()` is available **[CORR]**
-- [ ] **SETUP-03**: `.gitattributes` is committed enforcing LF for `.sh`/`Dockerfile` and CRLF for `.ps1`, with the repo renormalized, so shell scripts do not fail with `bad interpreter` on macOS/Linux
-- [ ] **SETUP-04**: `.env.example` is committed documenting `OPENROUTER_API_KEY`, `MASSIVE_API_KEY`, and `LLM_MOCK`
-- [ ] **SETUP-05**: Stale `__pycache__` directories under `backend/app/{api,db,llm,services}` and `backend/tests/{api,db,llm,services}` are removed
-- [ ] **SETUP-06**: The 154 existing market-data tests still pass after all dependency changes
+- [x] **SETUP-01**: `litellm`, `pydantic`, and `python-dotenv` are declared in `backend/pyproject.toml` and present in `uv.lock`, so `uv sync --frozen` produces a container whose chat endpoint imports successfully
+- [x] **SETUP-02**: FastAPI floor is raised to `>=0.141.1` so `app.frontend()` is available **[CORR]**
+- [x] **SETUP-03**: `.gitattributes` is committed enforcing LF for `.sh`/`Dockerfile` and CRLF for `.ps1`, with the repo renormalized, so shell scripts do not fail with `bad interpreter` on macOS/Linux
+- [x] **SETUP-04**: `.env.example` is committed documenting `OPENROUTER_API_KEY`, `MASSIVE_API_KEY`, and `LLM_MOCK`
+- [x] **SETUP-05**: Stale `__pycache__` directories under `backend/app/{api,db,llm,services}` and `backend/tests/{api,db,llm,services}` are removed
+- [x] **SETUP-06**: The 154 existing market-data tests still pass after all dependency changes
 
 ### Core (App Assembly + Database)
 
-- [ ] **CORE-01**: A `create_app()` factory assembles the FastAPI app, constructing `PriceCache` and the market data source before router registration
-- [ ] **CORE-02**: The market data background task starts and stops with the app lifespan, not a deprecated startup event
-- [ ] **CORE-03**: The already-built SSE router is mounted and `GET /api/stream/prices` streams live prices from the running app
-- [ ] **CORE-04**: The SQLite database is created and seeded lazily on first use — six tables, one profile with $10,000 cash, ten default watchlist tickers, and one portfolio snapshot
-- [ ] **CORE-05**: Database writes use WAL, a busy timeout, and a `BEGIN IMMEDIATE` transaction helper so a snapshot task and a trade cannot collide with `database is locked` **[CORR]**
-- [ ] **CORE-06**: Money and share quantities are rounded at the write boundary and compared with an epsilon, so selling an entire position leaves no residual fractional shares **[CORR]**
-- [ ] **CORE-07**: The shared `PriceCache` is reachable by dependency injection from the portfolio, watchlist, and chat routers without a module-level singleton
-- [ ] **CORE-08**: `GET /api/health` returns `{status, market_source, tickers_cached, newest_price_age_seconds}`
-- [ ] **CORE-09**: The static frontend is served from the same origin on port 8000 without shadowing any `/api/*` route **[CORR]**
-- [ ] **CORE-10**: Database access never blocks the event loop, so a slow write cannot stall the SSE stream
+- [x] **CORE-01**: A `create_app()` factory assembles the FastAPI app, constructing `PriceCache` and the market data source before router registration
+- [x] **CORE-02**: The market data background task starts and stops with the app lifespan, not a deprecated startup event
+- [x] **CORE-03**: The already-built SSE router is mounted and `GET /api/stream/prices` streams live prices from the running app
+- [x] **CORE-04**: The SQLite database is created and seeded lazily on first use — six tables, one profile with $10,000 cash, ten default watchlist tickers, and one portfolio snapshot
+- [x] **CORE-05**: Database writes use WAL, a busy timeout, and a `BEGIN IMMEDIATE` transaction helper so a snapshot task and a trade cannot collide with `database is locked` **[CORR]**
+- [x] **CORE-06**: Money and share quantities are rounded at the write boundary and compared with an epsilon, so selling an entire position leaves no residual fractional shares **[CORR]**
+- [x] **CORE-07**: The shared `PriceCache` is reachable by dependency injection from the portfolio, watchlist, and chat routers without a module-level singleton
+- [x] **CORE-08**: `GET /api/health` returns `{status, market_source, tickers_cached, newest_price_age_seconds}`
+- [x] **CORE-09**: The static frontend is served from the same origin on port 8000 without shadowing any `/api/*` route **[CORR]**
+- [x] **CORE-10**: Database access never blocks the event loop, so a slow write cannot stall the SSE stream
 
 ### Portfolio
 
@@ -116,7 +116,7 @@ Requirements marked **[NEW]** are additions beyond PLAN.md, approved by the user
 
 ### Testing
 
-- [ ] **TEST-01**: Backend tests cover database initialization, seeding, and the money/quantity rounding rules
+- [x] **TEST-01**: Backend tests cover database initialization, seeding, and the money/quantity rounding rules
 - [ ] **TEST-02**: Backend tests cover trade execution and every rejection path — insufficient cash, insufficient shares, invalid quantity, position deletion at zero
 - [ ] **TEST-03**: Backend tests cover LLM structured-output parsing, including malformed and schema-violating responses
 - [ ] **TEST-04**: Backend tests cover every API route's status codes and response shapes
@@ -169,23 +169,23 @@ Deferred. Tracked but not in the current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SETUP-01 | Phase 1 | Pending |
-| SETUP-02 | Phase 1 | Pending |
-| SETUP-03 | Phase 1 | Pending |
-| SETUP-04 | Phase 1 | Pending |
-| SETUP-05 | Phase 1 | Pending |
-| SETUP-06 | Phase 1 | Pending |
-| CORE-01 | Phase 1 | Pending |
-| CORE-02 | Phase 1 | Pending |
-| CORE-03 | Phase 1 | Pending |
-| CORE-04 | Phase 1 | Pending |
-| CORE-05 | Phase 1 | Pending |
-| CORE-06 | Phase 1 | Pending |
-| CORE-07 | Phase 1 | Pending |
-| CORE-08 | Phase 1 | Pending |
-| CORE-09 | Phase 1 | Pending |
-| CORE-10 | Phase 1 | Pending |
-| TEST-01 | Phase 1 | Pending |
+| SETUP-01 | Phase 1 | Complete |
+| SETUP-02 | Phase 1 | Complete |
+| SETUP-03 | Phase 1 | Complete |
+| SETUP-04 | Phase 1 | Complete |
+| SETUP-05 | Phase 1 | Complete |
+| SETUP-06 | Phase 1 | Complete |
+| CORE-01 | Phase 1 | Complete |
+| CORE-02 | Phase 1 | Complete |
+| CORE-03 | Phase 1 | Complete |
+| CORE-04 | Phase 1 | Complete |
+| CORE-05 | Phase 1 | Complete |
+| CORE-06 | Phase 1 | Complete |
+| CORE-07 | Phase 1 | Complete |
+| CORE-08 | Phase 1 | Complete |
+| CORE-09 | Phase 1 | Complete |
+| CORE-10 | Phase 1 | Complete |
+| TEST-01 | Phase 1 | Complete |
 | DOCK-01 | Phase 2 | Pending |
 | DOCK-03 | Phase 2 | Pending |
 | DOCK-04 | Phase 2 | Pending |
@@ -265,6 +265,7 @@ Deferred. Tracked but not in the current roadmap.
 | TEST-15 | Phase 7 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 94 total
 - Mapped to phases: 94 ✓
 - Unmapped: 0

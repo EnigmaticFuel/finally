@@ -15,7 +15,7 @@ The path is deliberately spine-first. Phase 1 assembles the FastAPI app so the a
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation & Spine** - Assembled FastAPI app, live SSE stream, seeded SQLite layer
+- [x] **Phase 1: Foundation & Spine** - Assembled FastAPI app, live SSE stream, seeded SQLite layer (completed 2026-08-06)
 - [ ] **Phase 2: Walking-Skeleton Container** - One container on port 8000 with a persistent database
 - [ ] **Phase 3: Portfolio & Watchlist APIs** - Real money, enforced trade rules, live watchlist
 - [ ] **Phase 4: Frontend Shell** - Dark trading terminal streaming prices and taking trades
@@ -187,7 +187,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Spine | 5/5 | In Progress|  |
+| 1. Foundation & Spine | 5/5 | Complete    | 2026-08-06 |
 | 2. Walking-Skeleton Container | 0/TBD | Not started | - |
 | 3. Portfolio & Watchlist APIs | 0/TBD | Not started | - |
 | 4. Frontend Shell | 0/TBD | Not started | - |

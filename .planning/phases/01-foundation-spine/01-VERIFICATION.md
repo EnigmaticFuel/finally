@@ -1,24 +1,28 @@
 ---
 phase: 01-foundation-spine
 verified: 2026-08-06T20:15:00Z
-status: human_needed
+status: passed
 score: 57/63 must-haves verified
 behavior_unverified: 2
 overrides_applied: 0
 deferred:
+
   - truth: "The lazy database initialization is triggered by an HTTP request (`the first request creates and seeds it`)"
     addressed_in: "Phase 3"
     evidence: "Phase 3 success criterion 1: 'A user can read their portfolio — cash, total value, and every position with quantity, avg cost, current price, market value and unrealized P&L — and can buy or sell at the server's price'. Phase 1's roadmap scope note assigns query functions to Phase 1 and routers to Phase 3; `run_db` (the only caller of `ensure_initialized`) therefore has no app-side consumer until Phase 3's routers land."
 behavior_unverified_items:
+
   - truth: "An interrupted `uv sync` leaves a partially installed venv that a plain re-run does not repair; deleting `backend/.venv` and re-syncing with `UV_LINK_MODE=copy` restores a complete, importable environment"
     test: "Interrupt a `uv sync --frozen --extra dev` mid-install, re-run it plainly and confirm it does NOT repair, then delete `backend/.venv` and re-sync with `UV_LINK_MODE=copy`"
     expected: "The plain re-run leaves the environment still broken; the delete-and-resync produces an environment where `uv run --frozen python -c \"import litellm, pydantic, dotenv, httpx, fastapi\"` succeeds"
     why_human: "The end state is proven (the frozen import smoke passes today), but the failure-and-recovery transition can only be exercised by destroying the working venv. Verification spot-checks are forbidden from mutating state, so the asserted recovery invariant is present-in-narrative but unexercised."
+
   - truth: "Concurrent requests to `/` and to `/api/*` are served independently under the `app.frontend()` registration; neither blocks nor corrupts the other"
     test: "With the app running, hold a request to `/` open (or issue `/` and `/api/health` concurrently under load) and confirm both complete with correct, uncorrupted bodies"
     expected: "`/` returns the static HTML and `/api/health` returns its four-key JSON, concurrently, with neither blocking nor truncating the other"
     why_human: "Declared `verification: backstop` in 01-01-PLAN.md, so it abstains absent explicit evidence. The nearest test (`test_concurrent_health_and_stream`) proves `/api/*` against `/api/*` under a held-open SSE stream, not `/` against `/api/*`. No test exercises the static-route-versus-API concurrency this truth names."
 flagged_prohibitions:
+
   - requirement_id: TEST-01
     plan: "01-03"
     verification: test
@@ -26,6 +30,7 @@ flagged_prohibitions:
     disposition: unverified
     flagged: true
     evidence: "Current state is correct: an exhaustive grep over `backend/app/` finds zero `UPDATE trades` / `DELETE FROM trades` statements, and `queries.py` is documented and structured as the sole SQL module, with `insert_trade` its only writer. But no test asserts the absence, so nothing would catch a future query function that mutates the audit log. Test-tier prohibition with no wired enforcement — fail closed."
+
   - requirement_id: CORE-04
     plan: "01-05"
     verification: test
@@ -33,6 +38,7 @@ flagged_prohibitions:
     disposition: unverified
     flagged: true
     evidence: "The plan's only modified file is `db/finally.db`; no gating script or check was committed. The git-status precondition was a procedural step the executor performed and recorded in 01-05-SUMMARY.md, leaving no artifact in the codebase to verify or to protect the next rewrite. Test-tier prohibition with no wired enforcement — fail closed."
+
   - requirement_id: CORE-08
     plan: "01-01"
     verification: judgment
@@ -40,6 +46,7 @@ flagged_prohibitions:
     disposition: llm_judge_satisfied_non_authoritative
     flagged: true
     evidence: "NON-AUTHORITATIVE LLM-judge verdict: satisfied. `create_health_router` computes `newest_price_age_seconds` from `price_cache.newest_timestamp()` at request time, returns `None` before any price exists rather than a fake zero, and `tests/api/test_health.py` pins both the None case and the non-negative-float case. Nothing is hardcoded green. Human review recommended — unverified-prohibition."
+
   - requirement_id: SETUP-06
     plan: "01-05"
     verification: judgment
@@ -48,21 +55,27 @@ flagged_prohibitions:
     flagged: true
     evidence: "NON-AUTHORITATIVE LLM-judge verdict: satisfied. The executor corrected the node ID, re-ran the test in isolation, and recorded a measured signature (timing-sensitive, not load-sensitive). The final suite is 243 passed / 0 failed, so no failure was tolerated at all. Caveat: 01-05-PLAN.md, 01-CONTEXT.md D-24 and 01-VALIDATION.md all name `tests/market/test_simulator.py::test_custom_update_interval`, a node ID that collects zero tests — the planning artifacts encode an unusable gate target. Human review recommended — unverified-prohibition."
 human_verification:
+
   - test: "Interrupt a `uv sync --frozen --extra dev`, re-run it plainly, then delete `backend/.venv` and re-sync with `UV_LINK_MODE=copy`"
     expected: "The plain re-run does not repair the venv; the delete-and-resync yields a complete environment where litellm, pydantic, dotenv, httpx and fastapi all import"
     why_human: "Only exercisable by destroying the working venv — a state mutation verification may not perform"
+
   - test: "Issue concurrent requests to `/` and `/api/health` against the running app and confirm both complete correctly"
     expected: "Static HTML and the four-key health JSON both return intact; neither blocks nor corrupts the other"
     why_human: "Declared `verification: backstop`; no test covers static-route-versus-API concurrency"
+
   - test: "Decide whether the two flagged test-tier prohibitions need wired enforcement in this milestone"
     expected: "A decision on (a) adding a guard that the `trades` table stays append-only, and (b) whether the `db/finally.db` rewrite gate needs a committed script rather than a one-time procedure"
     why_human: "Both are correct in current state but have no automated guard; fail-closed policy requires an explicit human disposition"
+
   - test: "Confirm the two judgment-tier prohibitions (CORE-08 health honesty, SETUP-06 flake discipline) are accepted"
     expected: "Human accepts the LLM-judge verdicts, or requests changes"
     why_human: "Judgment-tier prohibitions are never silently passed by an autonomous verifier"
+
   - test: "Correct the flake node ID recorded across the planning artifacts"
     expected: "01-CONTEXT.md D-24 and 01-VALIDATION.md name `tests/market/test_simulator_source.py::TestSimulatorDataSource::test_custom_update_interval` instead of the zero-collecting `tests/market/test_simulator.py::test_custom_update_interval`"
     why_human: "Documentation correction in decision records the verifier should not silently rewrite"
+
   - test: "Refresh 01-VALIDATION.md tracking state"
     expected: "Frontmatter leaves `status: draft` / `nyquist_compliant: false` / `wave_0_complete: false`, and the Per-Task Verification Map stops showing every row as `❌ W0` / `⬜ pending`, now that all referenced test files exist and pass"
     why_human: "Stale planning artifact; updating it is a planning decision, not a code fix"

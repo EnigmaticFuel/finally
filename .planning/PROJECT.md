@@ -26,13 +26,16 @@ It is the capstone project for an agentic AI coding course — built entirely by
 - ✓ Shared ticker validation — `TICKER_PATTERN` / `normalize_ticker()`, one rule for manual and LLM paths — existing
 - ✓ SSE stream router — `GET /api/stream/prices`, one event carrying all tickers, emitted only on cache change, with a 15s heartbeat comment frame — existing
 - ✓ Market data test suite — 154 pytest tests passing, ruff clean — existing
+- ✓ SQLite database layer with lazy initialization, schema creation, and default seed data (six tables, `user_id` defaulting to `"default"`) — Phase 1
+- ✓ FastAPI app assembly (`backend/app/main.py`) mounting every `/api/*` router before the static file mount — Phase 1
+- ✓ `GET /api/health` reporting market source, tickers cached, and newest price age — Phase 1
+- ✓ Concurrency-safe SQLite writes — WAL, `busy_timeout`, `BEGIN IMMEDIATE`, and a single `asyncio.to_thread` seam so DB work never blocks the event loop — Phase 1
+- ✓ Money and quantity rounding at the write boundary with epsilon comparison, so a full sell leaves no residual fractional shares — Phase 1
 
 ### Active
 
 <!-- Current scope. Build-order steps 2-8 of PLAN.md. -->
 
-- [ ] SQLite database layer with lazy initialization, schema creation, and default seed data (six tables, `user_id` defaulting to `"default"`)
-- [ ] FastAPI app assembly (`backend/app/main.py`) mounting every `/api/*` router before the static file mount
 - [ ] Portfolio API — `GET /api/portfolio`, `POST /api/portfolio/trade`, `GET /api/portfolio/history`
 - [ ] Trade execution honoring the full rule set: market orders only, no shorting, no margin, server-side fill price, auto-add-to-watchlist, 2s price wait, immediate snapshot write
 - [ ] 30-second portfolio snapshot background task that skips unchanged values
@@ -49,6 +52,7 @@ It is the capstone project for an agentic AI coding course — built entirely by
 - [ ] `LLM_MOCK=true` deterministic mock mode matching the keyword contract in PLAN.md section 9
 - [ ] AI chat panel — collapsible sidebar, scrolling history, loading indicator, inline action confirmations
 - [ ] Multi-stage Dockerfile (Node 22 → Python 3.12), bind-mounted `db/`, port 8000
+- [ ] Decide whether to disable FastAPI's `/docs`, `/redoc` and `/openapi.json` in the container image — currently served by default (emerged in Phase 1, tracked as T-1-18 / R-05 in `01-SECURITY.md`)
 - [ ] Start/stop scripts for macOS/Linux and Windows PowerShell, all idempotent
 - [ ] Backend unit tests (pytest) covering DB, portfolio, trade rules, LLM parsing, and API routes
 - [ ] Frontend unit tests covering component rendering, price flash, watchlist CRUD, portfolio math, chat rendering
@@ -76,9 +80,9 @@ It is the capstone project for an agentic AI coding course — built entirely by
 
 **PLAN.md is unusually complete.** It has already survived a documentation review that resolved 24 issues (section 14 logs every decision and where it lives). API request/response shapes, error envelopes, trade rules, the SSE payload, the DB schema, and the LLM mock contract are all specified concretely. Downstream phases should read it rather than re-deriving these.
 
-**Known state to clean up:** stale `__pycache__` directories exist under `backend/app/{api,db,llm,services}/` and `backend/tests/{api,db,llm,services}/` with no corresponding `.py` sources. They are leftover bytecode and hint at the intended structure — they are not evidence code exists. Delete them to avoid confusing contributors. `litellm` is present in the venv but absent from `pyproject.toml` and `uv.lock`; it must be added properly with `uv add litellm`.
+**Cleanup completed in Phase 1.** The stale `__pycache__` trees are gone (zero tracked bytecode), `litellm` is now a real locked dependency alongside `pydantic`, `python-dotenv` and `httpx`, and `.env.example` is committed with placeholders only. `.gitattributes` now pins `.sh`/`Dockerfile` to LF and `.ps1` to CRLF while excluding `*.db` from text conversion, and `db/finally.db` carries the standard fresh seed rather than a used session.
 
-**Environment:** Windows 11, Git Bash available, `uv` as the Python package manager (never bare `python`/`pip`). `.env` exists at the project root with an `OPENROUTER_API_KEY`; `.env.example` is specified in PLAN.md but not yet committed.
+**Environment:** Windows 11, Git Bash available, `uv` as the Python package manager (never bare `python`/`pip`). `.env` exists at the project root with an `OPENROUTER_API_KEY`. Python is pinned to 3.12 via `backend/.python-version` to match the Docker target.
 
 ## Constraints
 
@@ -105,6 +109,10 @@ It is the capstone project for an agentic AI coding course — built entirely by
 | Market data subsystem is frozen as Validated | Complete, tested, and audited; downstream phases build against its contract rather than changing it | ✓ Good |
 | Project stays inside OneDrive; `db/` bind mount unchanged | User accepted the risk after it was raised. SQLite on a Windows Docker Desktop bind mount is a documented `database is locked` generator (POSIX advisory locking does not work over 9p/drvfs), and OneDrive independently syncs the live `.db` plus its `-wal`/`-shm` sidecars. No phase should plan a relocation | ⚠️ Revisit — if `database is locked` appears during the DB phase, this is the cause |
 | `db/finally.db` stays tracked in git | User accepted the risk after it was raised. Consequences: every trade produces a binary diff, and branch switches overwrite the live database. Note that PLAN.md section 4 claims this file is gitignored — that claim is factually wrong and should not be trusted by any agent | ⚠️ Revisit |
+| `app.frontend()` (FastAPI >= 0.141.1) instead of hand-ordered `StaticFiles` | One call registers the static mount with an SPA fallback, and registering it after the routers keeps `/api/*` from being shadowed — the mount-order hazard PLAN.md section 11 calls out | ✓ Good — `test_api_not_shadowed` proves the Accept matrix over real HTTP |
+| `BEGIN IMMEDIATE` for every write, not just optimistic retry | Takes the write lock up front so two read-modify-write sequences cannot interleave. The concurrency test asserts the final stored value equals the committed write count, not merely that no exception was raised | ✓ Good — zero lost updates under 6-way contention |
+| Tracked `db/finally.db` rewritten with the standard fresh seed | The file shipped a used session ($6,200 cash, 4 positions, 46 trades), so a fresh clone never saw the first-launch state PLAN.md promises. CONTEXT.md forbids untracking the file, not rewriting its contents | ✓ Good |
+| Two flagged prohibitions accepted without automated guards | The `trades` append-only rule and the `db/finally.db` rewrite gate are both correct in current state but enforced by inspection and procedure rather than by test. Accepted for this milestone rather than adding guards | ⚠️ Revisit — logged as R-03 / R-04 in `01-SECURITY.md` |
 
 ## Evolution
 
@@ -124,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-05 after initialization*
+*Last updated: 2026-08-06 after Phase 1*
