@@ -794,23 +794,32 @@ Four items the phase needs that no requirement currently names. Each is small; e
 | A5 | `tests/market/` is not covered by the `backend/app/market/` freeze | Pitfall 1 | If it is frozen, option (c) for the flake is off the table and only restating SETUP-06 remains |
 | A6 | The six-table DDL in the tracked database reflects the intended schema | Runtime State Inventory | It matches PLAN.md §7 on the two tables inspected (`users_profile` keyed on `id`; `positions` with `user_id` + `UNIQUE(user_id, ticker)`), but the other four were not read column-by-column. Write `schema.sql` from PLAN.md §7, not by dumping the existing file |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What should the tracked `db/finally.db` contain on `main`?**
+All four were resolved at the `/gsd-plan-phase` research gate on 2026-08-05. Resolutions are recorded as decisions in `01-CONTEXT.md` and encoded in the phase plans.
+
+| # | Question | Resolution | Recorded as |
+|---|----------|-----------|-------------|
+| 1 | What should the tracked `db/finally.db` contain? | Replace with a freshly-seeded database ($10,000, ten tickers, one snapshot); file stays tracked | **D-23** — gated task in plan 01-05 |
+| 2 | Is SETUP-06's "154 tests pass" a hard gate? | No — restated as "no new failures vs. the pre-phase baseline"; the flake is tolerated and nothing under `tests/market/` is modified | **D-24** — plan 01-05 |
+| 3 | Context7 was unavailable this session | Deferred. Residual risk low for this phase; Phase 6 re-attempts Context7 or spikes the live LiteLLM path | Deferred to Phase 6 (already flagged "Unverified" in STATE.md) |
+| 4 | Should `create_market_data_source()` be overridable for tests? | Yes — the conftest fixture constructs the app with the simulator explicitly and clears `MASSIVE_API_KEY` for the session | **D-22** — conftest fixture task |
+
+1. **(RESOLVED → D-23)** **What should the tracked `db/finally.db` contain on `main`?**
    - What we know: it is tracked, 94 KB, six populated tables, $6,200.01 cash, 12 tickers, 4 positions, 26 chat messages. Untracking is explicitly forbidden. Tests use `tmp_path`, so the *test* suite is unaffected.
    - What's unclear: whether the user, when accepting the tracked-db risk, understood that a fresh clone inherits a used portfolio rather than the $10,000 first-launch state.
    - Recommendation: surface it in `/gsd-discuss-phase` or as a `checkpoint:human-verify` task. Default to option 1 (commit a freshly-seeded database) — it satisfies CORE-04's intent, preserves every accepted risk, and unblocks TEST-06.
 
-2. **Is SETUP-06's "154 tests pass" a hard gate?**
+2. **(RESOLVED → D-24)** **Is SETUP-06's "154 tests pass" a hard gate?**
    - What we know: 154/154 pass on current deps; the same suite yields 153/154 on FastAPI 0.141.1; and the one failure reproduces 3-in-10 on the **unmodified** environment. The bump is not the cause.
    - Recommendation: restate as "no new failures relative to the pre-phase baseline." Decide separately, with the user, whether the flake may be fixed given its proximity to the frozen module.
 
-3. **Context7 was unavailable this session.**
+3. **(RESOLVED — deferred to Phase 6)** **Context7 was unavailable this session.**
    - What we know: the project's global `rules/context7.md` mandates Context7 for library docs; the MCP tool was not registered in this environment (`mcp__context7__resolve-library-id` → "No such tool available").
    - Mitigation applied: rather than fall back to web results alone, every load-bearing API claim was verified by **executing against the installed packages** — `inspect.signature`, live route probes, a real streaming server, and a threaded SQLite stress test. That is a stronger source than documentation for behavioral questions.
    - Residual risk: low for this phase. Phase 6 (LiteLLM structured outputs, already flagged "Unverified" in STATE.md) should re-attempt Context7 or spike the live path.
 
-4. **Does `create_market_data_source()` belong in `create_app()` or behind a factory override for tests?**
+4. **(RESOLVED → D-22)** **Does `create_market_data_source()` belong in `create_app()` or behind a factory override for tests?**
    - What we know: it reads `MASSIVE_API_KEY` from the environment at call time (`factory.py:24`). A developer with that key set would have their test suite hit the real Massive API.
    - Recommendation: the D-22 conftest fixture should construct the app with the simulator explicitly, or clear `MASSIVE_API_KEY` for the test session. Cheap to do now; confusing to debug later.
 
