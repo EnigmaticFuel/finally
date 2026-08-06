@@ -1,4 +1,30 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(npx gsd-core *)",
+      "Read(.planning/*)",
+      "Edit(.planning/*)",
+      "Read(STATE.md)",
+      "Edit(STATE.md)",
+      "Bash(uv run *)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"check-ignore exit: $?\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(grep -n '^#' __TRACKED_VAR__/.planning/phases/01-foundation-spine/01-05-SUMMARY.md)",
+      "Bash(grep -niE 'self.check|verification|status:' __TRACKED_VAR__/.planning/phases/01-foundation-spine/01-05-SUMMARY.md)",
+      "Bash(node .claude/gsd-core/bin/gsd-tools.cjs query roadmap.get-phase 1)",
+      "Bash(node .claude/gsd-core/bin/gsd-tools.cjs query roadmap.analyze --raw)",
+      "Bash(node -e \"let b='';process.stdin.on\\('data',c=>b+=c\\);process.stdin.on\\('end',\\(\\)=>{const d=JSON.parse\\(b\\);\\(d.phases||[]\\).forEach\\(p=>{if\\(Number\\(p.number\\)>1\\)console.log\\('PHASE '+p.number+': '+p.name+'\\\\n  GOAL: '+p.goal+'\\\\n  SC: '+\\(p.success_criteria||[]\\).join\\('\\\\n      '\\)\\)}\\)}\\)\")",
+      "Bash(git check-attr *)",
+      "Skill(gsd-secure-phase)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.secrets)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -160,19 +186,5 @@
   },
   "worktree": {
     "baseRef": "head"
-  },
-  "permissions": {
-    "allow": [
-      "Bash(npx gsd-core *)",
-      "Read(.planning/*)",
-      "Edit(.planning/*)",
-      "Read(STATE.md)",
-      "Edit(STATE.md)"
-    ],
-    "deny": [
-      "Read(.env)",
-      "Read(.env.*)",
-      "Read(.secrets)"
-    ]
   }
 }
