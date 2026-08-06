@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. `uv sync --frozen` from the committed lockfile produces an environment where the chat dependencies import cleanly and all 154 existing market-data tests still pass.
   5. A fresh clone carries `.env.example` and a `.gitattributes` that keeps `.sh`/`Dockerfile` at LF and `.ps1` at CRLF, and no stale `__pycache__` trees remain under `backend/`.
 
-**Plans**: 2/5 plans executed
+**Plans**: 4/5 plans executed
 
 Plans:
 **Wave 1**
@@ -51,8 +51,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — Complete query surface for profile, positions, trades, snapshots, watchlist and chat, plus the threaded contention proof
-- [ ] 01-04-PLAN.md — Repo hygiene: `.gitattributes` and renormalization, `.env.example`, WAL sidecar ignores, stale bytecode cleanup
+- [x] 01-03-PLAN.md — Complete query surface for profile, positions, trades, snapshots, watchlist and chat, plus the threaded contention proof
+- [x] 01-04-PLAN.md — Repo hygiene: `.gitattributes` and renormalization, `.env.example`, WAL sidecar ignores, stale bytecode cleanup
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -187,7 +187,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Spine | 2/5 | In Progress|  |
+| 1. Foundation & Spine | 4/5 | In Progress|  |
 | 2. Walking-Skeleton Container | 0/TBD | Not started | - |
 | 3. Portfolio & Watchlist APIs | 0/TBD | Not started | - |
 | 4. Frontend Shell | 0/TBD | Not started | - |
