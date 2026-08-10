@@ -77,7 +77,13 @@ Plans:
   3. Running start twice, or stop twice, is safe and produces the same result.
   4. The container reads `OPENROUTER_API_KEY`, `MASSIVE_API_KEY` and `LLM_MOCK` from the root `.env`, and runs a single uvicorn worker so there is exactly one price universe and fills always agree with streamed prices.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Container image: `.dockerignore`, multi-stage `Dockerfile`, and one proven end-to-end path serving `/api/health` and `/` on port 8000
+- [ ] 02-02-PLAN.md — Idempotent start/stop scripts for macOS/Linux (LF) and Windows PowerShell 5.1 (CRLF), with the readiness gate and the image-staleness print
+- [ ] 02-03-PLAN.md — Deliberate WAL-over-bind-mount stress against a scratch database, plus write-through and restart-persistence proof
+- [ ] 02-04-PLAN.md — Committed `scripts/smoke_check.py` proving all four success criteria against a real container
 
 **Why here and not at the end**: PLAN.md itself calls single-origin static serving "the most common way this architecture breaks." Proving it while the app is a spine, rather than after every feature exists, is the user-approved deviation from PLAN.md build-order step 7. The real lockfile build stages land in Phase 7.
 
