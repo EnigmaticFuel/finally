@@ -10,7 +10,7 @@ last_updated: "2026-08-10T17:17:41.803Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 01 complete, transitioned to Phase 2
 progress:
-  total_phases: 2
+  total_phases: 7
   completed_phases: 1
   total_plans: 5
   completed_plans: 5
@@ -73,7 +73,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Decide whether to disable FastAPI's `/docs`, `/redoc`, `/openapi.json` in the container image (Phase 7). Currently served by default — T-1-18 / R-05 in `01-SECURITY.md`.
+- *(none)* — the `/docs` / `/redoc` / `/openapi.json` question (T-1-18 / R-05) is **resolved** by D-08 in `02-CONTEXT.md`: they stay enabled, no code change, R-05 accepted. `01-SECURITY.md` names Phase 7 as the owner; that is superseded.
 
 ### Blockers/Concerns
 
