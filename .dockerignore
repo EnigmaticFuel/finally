@@ -1,0 +1,55 @@
+# What never crosses into the build context. Every path here is either dead
+# weight the daemon would upload on each build, or a file that would be wrong
+# or dangerous inside the image.
+#
+# Deliberately NOT excluded, because the build needs them:
+#   backend/pyproject.toml, backend/uv.lock  - the uv sync inputs
+#   backend/README.md                        - pyproject declares readme = "README.md";
+#                                              excluding it fails the project install
+#   backend/static/index.html                - the frontend stage's input
+
+# Host virtualenvs
+#   257 MB of the 298 MB build context, and built against Windows wheels. If
+#   one reached the image it would shadow the container's own venv at
+#   /app/backend/.venv with binaries that cannot run on Linux.
+**/.venv
+
+# Secrets
+#   The one .env is delivered at run time by `docker run --env-file .env`, and
+#   that is the only configuration mechanism. A credential copied into a layer
+#   is permanent and travels with the image, so it never enters the context.
+.env
+
+# Version control and agent planning artifacts
+#   Neither is read at build or run time.
+.git
+.gitignore
+.gitattributes
+.github
+.planning
+.claude
+planning
+
+# Host test harness
+#   Playwright runs on the host against the running container, never inside it.
+test
+
+# Runtime database
+#   The SQLite file arrives through the db/ bind mount at run time. Baking a
+#   copy into the image would give the container a second, stale database that
+#   the mount then hides.
+db
+
+# Build and tooling caches
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.uv-cache
+**/.mypy_cache
+
+# Docker's own files
+#   Nothing in the image reads them.
+Dockerfile
+.dockerignore
