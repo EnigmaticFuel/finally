@@ -212,3 +212,10 @@ __marimo__/
 #   is a corruption vector. db/finally.db itself stays tracked.
 db/*.db-wal
 db/*.db-shm
+
+# WAL stress scratch database
+#   scripts/wal_stress.py writes this beside the real database so it stresses
+#   the same bind mount without touching a tracked file. Ignoring it keeps a
+#   run from leaving untracked noise in git status. This is an ignore rule for
+#   a scratch file, not an untracking of db/finally.db, which stays tracked.
+db/wal_stress.db*
