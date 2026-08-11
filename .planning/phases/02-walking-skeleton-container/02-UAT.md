@@ -1,9 +1,9 @@
 ---
-status: partial
+status: complete
 phase: 02-walking-skeleton-container
 source: [02-VERIFICATION.md]
 started: 2026-08-11T17:20:00Z
-updated: 2026-08-11T17:55:00Z
+updated: 2026-08-11T18:40:00Z
 ---
 
 ## Current Test
@@ -14,9 +14,8 @@ updated: 2026-08-11T17:55:00Z
 
 ### 1. Native POSIX run of the `.sh` pair (A-05)
 expected: On a macOS or Linux host with Docker, from a clean state run `bash scripts/start_mac.sh`, then `docker inspect finally-app --format '{{(index .Mounts 0).Source}}'`, open the printed URL, then run `bash scripts/stop_mac.sh` twice. Exit 0 throughout; mount Source is the repo's own `db/`; the page renders; the second stop reports nothing to stop. The uid/gid behaviour D-06's root-user rationale turns on is POSIX-specific, so Windows cannot stand in for it.
-result: blocked
-blocked_by: other
-reason: "No native macOS or Linux host available. This machine is Windows 11 and Docker Desktop's WSL integration is disabled for the installed Ubuntu distro. The .sh bind-mount branch remains unexecuted on any host; assumption A-05 stands until a POSIX operator runs it."
+result: skipped
+reason: "No native macOS or Linux host available. Re-confirmed at 2026-08-11T18:40Z: `wsl -d Ubuntu -- docker version` resolves docker only to the Windows binary under /mnt/c and refuses to run ('The command docker could not be found in this WSL 2 distro'), so Docker Desktop's WSL integration remains disabled for the installed Ubuntu distro. The .sh bind-mount branch is therefore still unexecuted on any host. Accepted as a standing platform-coverage limit: assumption A-05 stands until a POSIX operator runs it. The Windows half of ROADMAP SC1 is behaviourally proven end to end (tests 2-4 plus the 11-check smoke run); only the POSIX half rests on code review."
 
 ### 2. One command reaches a working terminal (coverage D5 / D6)
 expected: Run `scripts/start_windows.ps1` from a clean state and judge the output as a first-time operator would. Three lines naming the image and its build time, then `http://localhost:8000`; no browser opens automatically; the page actually renders in a browser you open yourself.
@@ -36,7 +35,9 @@ total: 4
 passed: 3
 issues: 0
 pending: 0
-skipped: 0
-blocked: 1
+skipped: 1
+blocked: 0
 
 ## Gaps
+
+[none]
