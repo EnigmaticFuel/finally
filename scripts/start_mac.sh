@@ -22,6 +22,12 @@ set -euo pipefail
 IMAGE=finally-app:latest
 CONTAINER=finally-app
 URL=http://localhost:8000
+# The gate polls the address the container is actually published on. localhost
+# resolves to ::1 first on a dual-stack host, and the publish is IPv4 loopback
+# only, so a poll of localhost pays a connect-failure wait on every attempt
+# before falling back. The user still gets http://localhost:8000, which their
+# browser resolves with the same fallback.
+HEALTH_URL=http://127.0.0.1:8000/api/health
 READY_TIMEOUT_SECONDS=60
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -66,9 +72,9 @@ fi
 # Gate on the status code alone. newest_price_age_seconds is null until the
 # first price arrives, so a gate that waited for it would hang on a cold start.
 deadline=$(( $(date +%s) + READY_TIMEOUT_SECONDS ))
-until [ "$(curl -s -o /dev/null -w '%{http_code}' "${URL}/api/health")" = "200" ]; do
+until [ "$(curl -s -o /dev/null -w '%{http_code}' "${HEALTH_URL}")" = "200" ]; do
   if [ "$(date +%s)" -ge "$deadline" ]; then
-    echo "Timed out after ${READY_TIMEOUT_SECONDS}s waiting for ${URL}/api/health"
+    echo "Timed out after ${READY_TIMEOUT_SECONDS}s waiting for ${HEALTH_URL}"
     docker logs --tail 40 "${CONTAINER}"
     exit 1
   fi
