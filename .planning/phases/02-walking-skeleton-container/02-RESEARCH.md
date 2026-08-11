@@ -678,22 +678,27 @@ Measured reference numbers from this session's probe, for the planner to calibra
 | A5 | `finally:latest` on this machine is a leftover from earlier exploratory work, not something the user depends on | Runtime State Inventory | Low. Its CMD cannot boot against the current `main.py`, so nothing can be depending on it working. Worth one line of confirmation with the user before overwriting the tag |
 | A6 | The measured WAL behavior generalizes to the user's `db/` directory specifically | Pitfall 4 | Low. The probe used a OneDrive-synced Windows path on the same drive and the same Docker/WSL2 stack; `db/` differs only in path. D-16's in-place stress test is what closes the remaining gap, which is why it should still be written |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All three questions were decided during planning. Each is recorded with its decision and the plan that made it, so nothing here reads as still-open to a later phase.
 
 1. **Should the image be named something other than `finally`?**
    - What we know: `finally:latest` already exists on this machine with an incompatible layout, and `finally-backend-check:latest` also exists. Image names are a flat global namespace.
    - What's unclear: whether the user has any attachment to the `finally` tag, and whether D-10's staleness print is considered sufficient mitigation on its own.
    - Recommendation: use a more specific tag (e.g. `finally-app:latest`) **and** keep D-10's print. The print is required by D-10 regardless; the rename removes the collision entirely at zero cost. Confirm with the user during planning.
+   - **DECIDED — `finally-app:latest`, with D-10's print kept.** Recorded as planner decision 1 in `02-01-PLAN.md` `<planner_decisions>`, and used consistently as the image tag and container name across `02-01`, `02-02`, `02-03` and `02-04`. The pre-existing `finally:latest` is left untouched, and `02-01` Task 1 asserts it still exists after the build.
 
 2. **Does the WAL stress test (D-16) run against `db/finally.db` or a scratch database?**
    - What we know: `db/finally.db` is tracked in git, so writing to it produces a binary diff — PROJECT.md flags this as an accepted but real annoyance. The bind mount is `db/ → /app/db`, so a scratch file inside `db/` shares the mount and filesystem exactly.
    - What's unclear: whether a scratch file inside `db/` would be caught by `.gitignore` (only `db/*.db-wal` and `db/*.db-shm` are ignored `[VERIFIED: .gitignore:213-214]`, so `db/stress.db` would show up as untracked).
    - Recommendation: stress a scratch database at `/app/db/wal_stress.db` — same mount, same filesystem, no diff to the tracked file — and add `db/wal_stress.db*` to `.gitignore` as part of the plan. This is an ignore-rule addition, not an untracking of `finally.db`, so it does not touch the prohibition.
+   - **DECIDED — scratch database at `/app/db/wal_stress.db`, with `db/wal_stress.db*` added to `.gitignore`.** Recorded in `02-03-PLAN.md` Task 1, whose acceptance criteria assert `git check-ignore db/wal_stress.db` succeeds while `git check-ignore db/finally.db` fails and `db/finally.db` stays tracked.
 
 3. **Does the smoke check start the container itself, or assume it is running?**
    - What we know: D-15 says the script "starts the container … then restarts the container". That implies it drives the lifecycle.
    - What's unclear: whether it should shell out to the platform start script (inheriting D-13's readiness gate, as D-13 intends) or call `docker` directly (portable, but duplicates the gate).
    - Recommendation: shell out to the platform-appropriate start/stop script, selected by `sys.platform`. That is what makes D-13's "the smoke check … inherits it instead of re-implementing a wait" literally true.
+   - **DECIDED — shell out to the platform script, selected on `sys.platform`.** Recorded in `02-04-PLAN.md` Task 1 as `start_container()` / `stop_container()`, and pinned by that plan's `key_links` entry (`pattern: sys.platform`) and by the acceptance criterion requiring at least one `sys.platform` occurrence.
 
 ## Environment Availability
 

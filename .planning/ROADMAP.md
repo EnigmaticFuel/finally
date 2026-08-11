@@ -80,9 +80,20 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 02-01-PLAN.md — Container image: `.dockerignore`, multi-stage `Dockerfile`, and one proven end-to-end path serving `/api/health` and `/` on port 8000
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 02-02-PLAN.md — Idempotent start/stop scripts for macOS/Linux (LF) and Windows PowerShell 5.1 (CRLF), with the readiness gate and the image-staleness print
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 02-03-PLAN.md — Deliberate WAL-over-bind-mount stress against a scratch database, plus write-through and restart-persistence proof
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 02-04-PLAN.md — Committed `scripts/smoke_check.py` proving all four success criteria against a real container
 
 **Why here and not at the end**: PLAN.md itself calls single-origin static serving "the most common way this architecture breaks." Proving it while the app is a spine, rather than after every feature exists, is the user-approved deviation from PLAN.md build-order step 7. The real lockfile build stages land in Phase 7.
