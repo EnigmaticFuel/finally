@@ -77,7 +77,7 @@ Plans:
   3. Running start twice, or stop twice, is safe and produces the same result.
   4. The container reads `OPENROUTER_API_KEY`, `MASSIVE_API_KEY` and `LLM_MOCK` from the root `.env`, and runs a single uvicorn worker so there is exactly one price universe and fills always agree with streamed prices.
 
-**Plans**: 1/4 plans executed
+**Plans**: 2/4 plans executed
 
 Plans:
 **Wave 1**
@@ -86,7 +86,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — Idempotent start/stop scripts for macOS/Linux (LF) and Windows PowerShell 5.1 (CRLF), with the readiness gate and the image-staleness print
+- [x] 02-02-PLAN.md — Idempotent start/stop scripts for macOS/Linux (LF) and Windows PowerShell 5.1 (CRLF), with the readiness gate and the image-staleness print
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -205,7 +205,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Spine | 5/5 | Complete    | 2026-08-06 |
-| 2. Walking-Skeleton Container | 1/4 | In Progress|  |
+| 2. Walking-Skeleton Container | 2/4 | In Progress|  |
 | 3. Portfolio & Watchlist APIs | 0/TBD | Not started | - |
 | 4. Frontend Shell | 0/TBD | Not started | - |
 | 5. Charts & Visualization | 0/TBD | Not started | - |
