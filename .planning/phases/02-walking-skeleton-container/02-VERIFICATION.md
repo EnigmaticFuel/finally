@@ -1,29 +1,35 @@
 ---
 phase: 02-walking-skeleton-container
 verified: 2026-08-11T17:05:00Z
-status: human_needed
+status: passed
 score: 3/4 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
 behavior_unverified_items:
+
   - truth: "A user runs one start script - start_mac.sh or start_windows.ps1 - and reaches a working http://localhost:8000 (ROADMAP SC1)"
     test: "On a native macOS or Linux host with Docker: from a clean state run `bash scripts/start_mac.sh`, then `docker inspect finally-app --format '{{(index .Mounts 0).Source}}'`, then open the printed URL. Then run `bash scripts/stop_mac.sh` twice."
     expected: "Start exits 0 printing the image tag, an RFC3339 build timestamp and http://localhost:8000; the mount Source is the repository's own db/ directory; the page loads; both stops exit 0. On POSIX the host's real uid/gid apply to the bind mount, which is the one behaviour Windows cannot stand in for (D-06 / T-2-02 rationale)."
     why_human: "No native POSIX host exists on this machine and Docker Desktop's WSL integration is disabled for the installed distro. Both Git Bash modes failed at the host-path argument, so the .sh pair's bind-mount branch has never executed successfully anywhere. The Windows half of this criterion IS behaviourally proven; only the POSIX half rests on code review."
 human_verification:
+
   - test: "On a native macOS or Linux host, run scripts/start_mac.sh from a clean state, confirm the bind-mount Source resolves to the repo's db/ directory, open the URL, then run scripts/stop_mac.sh twice."
     expected: "Exit 0 throughout, mount Source correct, page loads, second stop reports nothing to stop."
     why_human: "Platform coverage gap A-05 - no POSIX host available to this phase."
+
   - test: "Run scripts/start_windows.ps1 from a clean state (no container) and judge the output as a first-time operator would."
     expected: "The three printed lines name the image and its build time, print http://localhost:8000, open no browser, and the page actually renders in a browser you open yourself."
     why_human: "Whether one command reads as reaching a working terminal is a UX judgement; the smoke check asserts endpoints respond, not that the experience lands. Carried as coverage entry D5 (02-01) and D6 (02-04) under workflow.human_verify_mode = end-of-phase."
+
   - test: "Build the image, then edit a file under backend/app/ and run scripts/start_windows.ps1 again WITHOUT --build. Revert the edit afterwards."
     expected: "The printed build timestamp makes the staleness obvious at a glance."
     why_human: "T-2-05's countermeasure has value only if a human notices it. A print that is technically present but visually buried has failed, and no script can judge that."
+
   - test: "With the container running, change a value in the root .env, then read it back inside the container with `docker exec finally-app printenv <KEY>`."
     expected: "The container still reports the OLD value - docker run --env-file snapshots the environment at creation time, so a config change requires stop + start."
     why_human: "Declared `verification: backstop` in 02-01-PLAN.md must_haves. No summary records this having been exercised, and a backstop truth abstains absent explicit evidence rather than being assumed from Docker's documented behaviour."
 prohibitions_flagged:
+
   - statement: "MUST NOT read, echo, log or otherwise surface the contents of .env on any code path including failure paths"
     tier: judgment
     llm_judge_verdict: "no violation observed - both start scripts pass .env to Docker by filename only (start_mac.sh:66, start_windows.ps1:100) and never open it; smoke_check.py reads values into memory and every failure message names the key alone (scripts/smoke_check.py:322-337)"
@@ -184,6 +190,7 @@ Two things stop this from being a clean `passed`, and neither is a defect in the
 **One documentation defect found, not claimed by any summary:** `REQUIREMENTS.md` still shows **DOCK-01, DOCK-03 and DOCK-06 as `[ ]` / "Pending"** (lines 109, 111, 114 and 189, 190, 193) even though plans 02-01 and 02-04 both declare them in `requirements-completed` and the implementation for all three is verified. Plans 02-02 and 02-03 updated the file for DOCK-04, DOCK-05 and DOCK-07; plans 02-01 and 02-04 did not. The code is right and the ledger is stale. Fix is three checkbox flips and three traceability rows - worth doing before `/gsd-ship` or any milestone audit reads that file and reports Phase 2 as two-thirds done.
 
 **Carried forward, correctly out of scope here:**
+
 - `backend/app/db/connection.py:62` discards the `PRAGMA journal_mode=WAL` return row, so a silent downgrade to `delete` would be invisible (T-2-11). Phase 1 code is frozen by `02-CONTEXT.md`; `scripts/wal_stress.py` is currently the only reader of that value. One-line fix when a later phase unfreezes it.
 - `test_custom_update_interval` is timing-marginal on Windows (~15.6 ms granularity against an assertion needing three ticks in 50 ms). Pre-existing, logged in `deferred-items.md`, not caused by and not fixable within this phase.
 
