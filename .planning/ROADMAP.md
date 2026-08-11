@@ -77,12 +77,12 @@ Plans:
   3. Running start twice, or stop twice, is safe and produces the same result.
   4. The container reads `OPENROUTER_API_KEY`, `MASSIVE_API_KEY` and `LLM_MOCK` from the root `.env`, and runs a single uvicorn worker so there is exactly one price universe and fills always agree with streamed prices.
 
-**Plans**: 4 plans
+**Plans**: 1/4 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Container image: `.dockerignore`, multi-stage `Dockerfile`, and one proven end-to-end path serving `/api/health` and `/` on port 8000
+- [x] 02-01-PLAN.md — Container image: `.dockerignore`, multi-stage `Dockerfile`, and one proven end-to-end path serving `/api/health` and `/` on port 8000
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -205,7 +205,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Spine | 5/5 | Complete    | 2026-08-06 |
-| 2. Walking-Skeleton Container | 0/TBD | Not started | - |
+| 2. Walking-Skeleton Container | 1/4 | In Progress|  |
 | 3. Portfolio & Watchlist APIs | 0/TBD | Not started | - |
 | 4. Frontend Shell | 0/TBD | Not started | - |
 | 5. Charts & Visualization | 0/TBD | Not started | - |
