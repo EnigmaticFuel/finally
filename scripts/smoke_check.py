@@ -35,7 +35,9 @@ without one, and every future phase would pay that on every test run.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sqlite3
 import subprocess
 import sys
 import urllib.error
@@ -156,6 +158,35 @@ def _read_env_keys() -> dict[str, str]:
         key, _, value = line.partition("=")
         pairs[key.strip()] = value.strip()
     return pairs
+
+
+def _sha256(path: Path) -> str:
+    """Digest a file, so a claim that it is untouched is measured rather than assumed."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _db_triple_from_host() -> tuple[str, float, int]:
+    """Read the seed timestamp, cash balance and watchlist size from the host file.
+
+    The connection is opened through a read-only URI so this script cannot
+    write to a tracked database even by accident. db/finally.db holds the
+    user's portfolio baseline, and a check that reset what it is checking would
+    destroy the very data DOCK-04 exists to protect.
+    """
+    connection = sqlite3.connect(f"file:{DB_FILE.as_posix()}?mode=ro", uri=True)
+    try:
+        created_at, cash = connection.execute(PROFILE_QUERY).fetchone()
+        count = connection.execute(WATCHLIST_QUERY).fetchone()[0]
+    finally:
+        connection.close()
+    return created_at, float(cash), int(count)
+
+
+def _db_triple_in_container() -> tuple[str, float, int]:
+    """Read the same three values from inside the running container."""
+    output = _docker("exec", CONTAINER, "python", "-c", CONTAINER_READ_SOURCE)
+    created_at, cash, count = output.splitlines()
+    return created_at, float(cash), int(count)
 
 
 def start_container(build: bool = False) -> None:
@@ -306,6 +337,88 @@ def check_env_delivered() -> None:
         raise RuntimeError("expected no /app/.env in the image, found one")
 
 
+def check_db_identity() -> None:
+    """The container reads the host's database, not a container-local copy.
+
+    created_at is what carries the weight. A cash balance of 10000.0 and a
+    watchlist of ten would also be produced by a freshly seeded container-local
+    database, so on their own they prove nothing about the mount. The seed
+    timestamp is unique to the host's file and no fresh seed can reproduce it.
+    """
+    host = _db_triple_from_host()
+    container = _db_triple_in_container()
+    if host != container:
+        raise RuntimeError(f"expected the host's {host}, got the container's {container}")
+
+
+def check_persistence_across_restart() -> None:
+    """The seeded values survive a full container destroy and recreate.
+
+    The stop script removes the container rather than pausing it, so this is a
+    destroy-and-recreate rather than a restart. That is the strong reading of
+    "persists across container restarts" and the one ROADMAP success criterion
+    2 asks for.
+    """
+    before = _db_triple_in_container()
+    stop_container()
+    start_container()
+    after = _db_triple_in_container()
+    if after != before:
+        raise RuntimeError(f"expected {before} after a recreate, got {after}")
+
+
+def check_start_is_idempotent() -> None:
+    """A second start is a no-op rather than a stop and recreate.
+
+    Equal StartedAt timestamps are the assertion that separates the two. A
+    recreate would also leave exactly one container running, while dropping
+    every open SSE connection and resetting every ticker's session open price.
+    """
+    start_container()
+    first = _docker("inspect", CONTAINER, "--format", "{{.State.StartedAt}}")
+    start_container()
+    second = _docker("inspect", CONTAINER, "--format", "{{.State.StartedAt}}")
+    if first != second:
+        raise RuntimeError(f"expected StartedAt {first}, got {second} after a second start")
+    ids = _container_ids()
+    if len(ids) != 1:
+        raise RuntimeError(f"expected exactly 1 container named {CONTAINER}, got {len(ids)}")
+
+
+def check_stop_is_idempotent() -> None:
+    """Stop twice, exit zero twice, with nothing left behind.
+
+    A non-zero second stop would break the safe stop-then-start pattern, since
+    stop_container raises on any non-zero exit.
+    """
+    stop_container()
+    ids = _container_ids()
+    if ids:
+        raise RuntimeError(f"expected no container named {CONTAINER}, got {len(ids)}")
+    stop_container()
+
+
+def check_stop_leaves_db_untouched() -> None:
+    """A routine stop leaves the tracked database byte for byte identical.
+
+    The container is started first so the stop being measured is a real one:
+    hashing either side of a stop that had nothing to stop would prove nothing,
+    and the failure this check exists to catch is a stop that destroyed the
+    user's portfolio.
+    """
+    start_container()
+    before = _sha256(DB_FILE)
+    stop_container()
+    after = _sha256(DB_FILE)
+    if after != before:
+        raise RuntimeError(f"expected sha256 {before}, got {after} after a stop")
+
+
+# Deterministic and state-aware: the serving checks run against the container
+# main() started, the identity check reads it before anything recreates it, and
+# the three lifecycle checks each leave the machine in the state the next one
+# needs. start_container and stop_container drive that order and are never
+# counted or reported as checks.
 CHECK_ORDER = (
     check_health,
     check_static_page,
@@ -313,6 +426,11 @@ CHECK_ORDER = (
     check_sse_stream,
     check_single_worker,
     check_env_delivered,
+    check_db_identity,
+    check_persistence_across_restart,
+    check_start_is_idempotent,
+    check_stop_is_idempotent,
+    check_stop_leaves_db_untouched,
 )
 
 
