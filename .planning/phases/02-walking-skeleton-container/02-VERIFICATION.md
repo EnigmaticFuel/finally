@@ -194,7 +194,28 @@ Two things stop this from being a clean `passed`, and neither is a defect in the
 - `backend/app/db/connection.py:62` discards the `PRAGMA journal_mode=WAL` return row, so a silent downgrade to `delete` would be invisible (T-2-11). Phase 1 code is frozen by `02-CONTEXT.md`; `scripts/wal_stress.py` is currently the only reader of that value. One-line fix when a later phase unfreezes it.
 - `test_custom_update_interval` is timing-marginal on Windows (~15.6 ms granularity against an assertion needing three ticks in 50 ms). Pre-existing, logged in `deferred-items.md`, not caused by and not fixable within this phase.
 
+## Acknowledged Gaps
+
+Accepted by the operator on 2026-08-11 during `/gsd-verify-work 02`, after the UAT
+session closed 3 passed / 0 issues / 1 skipped.
+
+| Gap | Status | Rationale |
+|---|---|---|
+| **A-05 — the `.sh` pair has never run on a native POSIX host** (human verification item 1) | Acknowledged, not closed | No macOS or Linux host is available. Re-confirmed at verification time rather than inherited: `wsl -d Ubuntu -- docker version` resolves `docker` only to the Windows binary under `/mnt/c` and refuses to run, so Docker Desktop's WSL integration is still disabled for the installed distro. The Windows half of ROADMAP SC1 is behaviourally proven end to end; the POSIX half rests on code review — the scripts are committed, `bash -n` clean, LF, `100755`, and a line-for-line mirror of the proven PowerShell pair. A macOS or Linux operator will be the first person to execute `start_mac.sh` against Docker. |
+
+**Consequence for phase state.** `phase uat-passed` treats any UAT result outside
+`{pass, passed}` as a blocker (`uat-predicate.cjs:43`, `:235`), so the skipped item
+leaves the predicate at `passed: false` with blocker `02-UAT.md: test 1 (skipped)`.
+Phase 2 is therefore **executed and verified but not transitioned** — ROADMAP.md and
+STATE.md still carry it as open by design, not by oversight. This does not gate Phase 3,
+which depends only on Phase 1 and touches disjoint files.
+
+**To close it later:** enable Docker Desktop's WSL integration for Ubuntu, clone the repo
+into the WSL ext4 home (not `/mnt/c` — `drvfs` fakes file ownership and would not exercise
+the uid/gid semantics this test exists for), then re-run `/gsd-verify-work 02`.
+
 ---
 
 *Verified: 2026-08-11T17:05:00Z*
 *Verifier: Claude (gsd-verifier)*
+*Gaps acknowledged: 2026-08-11T18:45:00Z*
