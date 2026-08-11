@@ -109,7 +109,7 @@ Requirements marked **[NEW]** are additions beyond PLAN.md, approved by the user
 - [ ] **DOCK-01**: A multi-stage Dockerfile builds the frontend on Node and the backend on Python 3.12 into a single image **[CORR: Node 24]**
 - [ ] **DOCK-02**: The image builds from lockfiles via `npm ci` and `uv sync --frozen --no-dev`
 - [ ] **DOCK-03**: One container on port 8000 serves both the API and the static frontend
-- [ ] **DOCK-04**: The SQLite database persists across container restarts via the `db/` bind mount
+- [x] **DOCK-04**: The SQLite database persists across container restarts via the `db/` bind mount
 - [x] **DOCK-05**: Start and stop scripts exist for macOS/Linux and Windows PowerShell, and are safe to run repeatedly
 - [ ] **DOCK-06**: The container runs a single uvicorn worker, so there is exactly one price universe and fills always agree with streamed prices **[CORR]**
 - [x] **DOCK-07**: The container receives configuration from the root `.env` file
@@ -188,7 +188,7 @@ Deferred. Tracked but not in the current roadmap.
 | TEST-01 | Phase 1 | Complete |
 | DOCK-01 | Phase 2 | Pending |
 | DOCK-03 | Phase 2 | Pending |
-| DOCK-04 | Phase 2 | Pending |
+| DOCK-04 | Phase 2 | Complete |
 | DOCK-05 | Phase 2 | Complete |
 | DOCK-06 | Phase 2 | Pending |
 | DOCK-07 | Phase 2 | Complete |
