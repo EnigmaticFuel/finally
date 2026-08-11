@@ -77,7 +77,7 @@ Plans:
   3. Running start twice, or stop twice, is safe and produces the same result.
   4. The container reads `OPENROUTER_API_KEY`, `MASSIVE_API_KEY` and `LLM_MOCK` from the root `.env`, and runs a single uvicorn worker so there is exactly one price universe and fills always agree with streamed prices.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 
 Plans:
 **Wave 1**
@@ -94,7 +94,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-04-PLAN.md — Committed `scripts/smoke_check.py` proving all four success criteria against a real container
+- [x] 02-04-PLAN.md — Committed `scripts/smoke_check.py` proving all four success criteria against a real container
 
 **Why here and not at the end**: PLAN.md itself calls single-origin static serving "the most common way this architecture breaks." Proving it while the app is a spine, rather than after every feature exists, is the user-approved deviation from PLAN.md build-order step 7. The real lockfile build stages land in Phase 7.
 
@@ -205,7 +205,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Spine | 5/5 | Complete    | 2026-08-06 |
-| 2. Walking-Skeleton Container | 3/4 | In Progress|  |
+| 2. Walking-Skeleton Container | 4/4 | In Progress|  |
 | 3. Portfolio & Watchlist APIs | 0/TBD | Not started | - |
 | 4. Frontend Shell | 0/TBD | Not started | - |
 | 5. Charts & Visualization | 0/TBD | Not started | - |
