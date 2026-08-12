@@ -31,6 +31,12 @@ It is the capstone project for an agentic AI coding course — built entirely by
 - ✓ `GET /api/health` reporting market source, tickers cached, and newest price age — Phase 1
 - ✓ Concurrency-safe SQLite writes — WAL, `busy_timeout`, `BEGIN IMMEDIATE`, and a single `asyncio.to_thread` seam so DB work never blocks the event loop — Phase 1
 - ✓ Money and quantity rounding at the write boundary with epsilon comparison, so a full sell leaves no residual fractional shares — Phase 1
+- ✓ Walking-skeleton container — multi-stage `Dockerfile` and `.dockerignore` serving API and static assets from one origin on port 8000 — Phase 2
+- ✓ Idempotent start/stop scripts for both platforms — `start_windows.ps1`/`stop_windows.ps1` (CRLF) and `start_mac.sh`/`stop_mac.sh` (LF, mode 100755), with a readiness gate and an image-staleness print — Phase 2
+- ✓ Database persistence across container restarts via the bind-mounted `db/` directory, including WAL-over-bind-mount stress and restart-persistence proof — Phase 2
+- ✓ Container environment from the root `.env` via `--env-file`, running a single uvicorn worker so there is exactly one price universe — Phase 2
+- ✓ `scripts/smoke_check.py` proving all four Phase 2 success criteria against a real container — Phase 2
+- ✓ Cross-platform script coverage proven on both hosts — the PowerShell pair on Windows and the `.sh` pair on Linux (Ubuntu WSL2, ext4) — Phase 2
 
 ### Active
 
@@ -40,7 +46,6 @@ It is the capstone project for an agentic AI coding course — built entirely by
 - [ ] Trade execution honoring the full rule set: market orders only, no shorting, no margin, server-side fill price, auto-add-to-watchlist, 2s price wait, immediate snapshot write
 - [ ] 30-second portfolio snapshot background task that skips unchanged values
 - [ ] Watchlist API — `GET/POST /api/watchlist`, `DELETE /api/watchlist/{ticker}` with 409 on held positions, wired to `add_ticker`/`remove_ticker` on the market source
-- [ ] `GET /api/health` reporting market source, tickers cached, and newest price age
 - [ ] Next.js TypeScript frontend as a static export, served by FastAPI on one origin/one port
 - [ ] Frontend shell — dark terminal layout, `EventSource` SSE wiring, watchlist panel with price flash animations, header with live total and connection status dot, trade bar
 - [ ] Client-side live valuation — cash + Σ(quantity × live price) recomputed on every SSE frame, driving header, positions table, heatmap, and the live end of the P&L line
@@ -51,9 +56,8 @@ It is the capstone project for an agentic AI coding course — built entirely by
 - [ ] Auto-execution of LLM-specified trades and watchlist changes through the same validation path as manual actions
 - [ ] `LLM_MOCK=true` deterministic mock mode matching the keyword contract in PLAN.md section 9
 - [ ] AI chat panel — collapsible sidebar, scrolling history, loading indicator, inline action confirmations
-- [ ] Multi-stage Dockerfile (Node 22 → Python 3.12), bind-mounted `db/`, port 8000
+- [ ] Production container build (DOCK-02, Phase 7) — replace Phase 2's placeholder build stages with the real lockfile ones (`npm ci`, `uv sync --frozen --no-dev`). Phase 2's walking-skeleton `Dockerfile` and bind-mounted `db/` on port 8000 already ship; this is the hardening pass, and it should also exercise the Docker *build* on Linux, which the A-05 run did not
 - [ ] Decide whether to disable FastAPI's `/docs`, `/redoc` and `/openapi.json` in the container image — currently served by default (emerged in Phase 1, tracked as T-1-18 / R-05 in `01-SECURITY.md`)
-- [ ] Start/stop scripts for macOS/Linux and Windows PowerShell, all idempotent
 - [ ] Backend unit tests (pytest) covering DB, portfolio, trade rules, LLM parsing, and API routes
 - [ ] Frontend unit tests covering component rendering, price flash, watchlist CRUD, portfolio math, chat rendering
 - [ ] Playwright E2E suite in `test/`, run on the host against the container, covering every scenario in PLAN.md section 12
@@ -113,6 +117,9 @@ It is the capstone project for an agentic AI coding course — built entirely by
 | `BEGIN IMMEDIATE` for every write, not just optimistic retry | Takes the write lock up front so two read-modify-write sequences cannot interleave. The concurrency test asserts the final stored value equals the committed write count, not merely that no exception was raised | ✓ Good — zero lost updates under 6-way contention |
 | Tracked `db/finally.db` rewritten with the standard fresh seed | The file shipped a used session ($6,200 cash, 4 positions, 46 trades), so a fresh clone never saw the first-launch state PLAN.md promises. CONTEXT.md forbids untracking the file, not rewriting its contents | ✓ Good |
 | Two flagged prohibitions accepted without automated guards | The `trades` append-only rule and the `db/finally.db` rewrite gate are both correct in current state but enforced by inspection and procedure rather than by test. Accepted for this milestone rather than adding guards | ⚠️ Revisit — logged as R-03 / R-04 in `01-SECURITY.md` |
+| A-05 closed on Ubuntu WSL2 rather than bare-metal Linux or macOS | WSL2 is a genuine Linux kernel on ext4, which is what the test asked for, and `02-VERIFICATION.md` had already named this exact path as the legitimate way to close the gap. Run from a fresh clone in the ext4 home, never `/mnt/c`, whose `drvfs` fabricates a single uniform owner and would not exercise the uid/gid semantics the test exists for | ✓ Good — proven, not reasoned: container `uid=0` alongside uid-1000 mount files, a root-written file landing as uid 0 beside them, and `journal_mode=wal` negotiating over the bind mount |
+| Phase 2's UAT result was corrected forward, not backdated | Test 1 was recorded `skipped` on 2026-08-11 because no POSIX host existed; it became `pass` on 2026-08-12 only after the run actually happened. The superseded `human_verification` frontmatter entries are kept verbatim as the record of why each item was routed to a human | ✓ Good — the ledger never asserted something that had not been executed |
+| The Dockerfile build remains unexercised on Linux | `start_mac.sh` builds only when the image is missing or `--build` is passed, so the Linux run reused the Windows-built `finally-app:latest`. The run path is proven on Linux; the build path is not | ⚠️ Revisit — Phase 7 replaces these placeholder build stages with the real lockfile build and should cover it |
 
 ## Evolution
 
@@ -132,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-06 after Phase 1*
+*Last updated: 2026-08-12 after Phase 2*

@@ -2,15 +2,10 @@
 phase: 02-walking-skeleton-container
 verified: 2026-08-11T17:05:00Z
 status: passed
-score: 3/4 must-haves verified
-behavior_unverified: 1
+score: 4/4 must-haves verified
+behavior_unverified: 0
 overrides_applied: 0
-behavior_unverified_items:
-
-  - truth: "A user runs one start script - start_mac.sh or start_windows.ps1 - and reaches a working http://localhost:8000 (ROADMAP SC1)"
-    test: "On a native macOS or Linux host with Docker: from a clean state run `bash scripts/start_mac.sh`, then `docker inspect finally-app --format '{{(index .Mounts 0).Source}}'`, then open the printed URL. Then run `bash scripts/stop_mac.sh` twice."
-    expected: "Start exits 0 printing the image tag, an RFC3339 build timestamp and http://localhost:8000; the mount Source is the repository's own db/ directory; the page loads; both stops exit 0. On POSIX the host's real uid/gid apply to the bind mount, which is the one behaviour Windows cannot stand in for (D-06 / T-2-02 rationale)."
-    why_human: "No native POSIX host exists on this machine and Docker Desktop's WSL integration is disabled for the installed distro. Both Git Bash modes failed at the host-path argument, so the .sh pair's bind-mount branch has never executed successfully anywhere. The Windows half of this criterion IS behaviourally proven; only the POSIX half rests on code review."
+behavior_unverified_items: []
 human_verification:
 
   - test: "On a native macOS or Linux host, run scripts/start_mac.sh from a clean state, confirm the bind-mount Source resolves to the repo's db/ directory, open the URL, then run scripts/stop_mac.sh twice."
@@ -201,21 +196,37 @@ session closed 3 passed / 0 issues / 1 skipped.
 
 | Gap | Status | Rationale |
 |---|---|---|
-| **A-05 — the `.sh` pair has never run on a native POSIX host** (human verification item 1) | Acknowledged, not closed | No macOS or Linux host is available. Re-confirmed at verification time rather than inherited: `wsl -d Ubuntu -- docker version` resolves `docker` only to the Windows binary under `/mnt/c` and refuses to run, so Docker Desktop's WSL integration is still disabled for the installed distro. The Windows half of ROADMAP SC1 is behaviourally proven end to end; the POSIX half rests on code review — the scripts are committed, `bash -n` clean, LF, `100755`, and a line-for-line mirror of the proven PowerShell pair. A macOS or Linux operator will be the first person to execute `start_mac.sh` against Docker. |
+| **A-05 — the `.sh` pair has never run on a native POSIX host** (human verification item 1) | **CLOSED 2026-08-12** | Closed exactly as prescribed below. The operator enabled Docker Desktop's WSL integration for Ubuntu; the pair was then executed from a fresh clone on the WSL2 ext4 home. See `02-UAT.md` test 1 for the full evidence trail. |
 
-**Consequence for phase state.** `phase uat-passed` treats any UAT result outside
-`{pass, passed}` as a blocker (`uat-predicate.cjs:43`, `:235`), so the skipped item
-leaves the predicate at `passed: false` with blocker `02-UAT.md: test 1 (skipped)`.
-Phase 2 is therefore **executed and verified but not transitioned** — ROADMAP.md and
-STATE.md still carry it as open by design, not by oversight. This does not gate Phase 3,
-which depends only on Phase 1 and touches disjoint files.
+**How it was closed.** Ubuntu WSL2 (kernel `6.18.33.2-microsoft-standard-WSL2`, ext4
+root) is a Linux host, which is what the test asked for. Run from a fresh `git clone`
+at `~/finally` on ext4 — deliberately not `/mnt/c`. `start_mac.sh` exited 0, the mount
+Source resolved to `/home/ehasin/finally/db`, `/api/health` and `/` both returned 200,
+the SSE stream emitted its all-ticker event, the operator confirmed the placeholder page
+renders, and `stop_mac.sh` exited 0 twice with the second run reporting nothing to stop.
 
-**To close it later:** enable Docker Desktop's WSL integration for Ubuntu, clone the repo
-into the WSL ext4 home (not `/mnt/c` — `drvfs` fakes file ownership and would not exercise
-the uid/gid semantics this test exists for), then re-run `/gsd-verify-work 02`.
+**D-06's root-user rationale is now proven rather than reasoned.** The container runs
+`uid=0(root)` while `db/finally.db` is uid/gid 1000; a root-written scratch WAL database
+appeared on the ext4 host side as uid/gid 0 beside it. Two distinct owners in one
+directory cannot be produced by `drvfs`, which fabricates a single uniform owner — so
+this is genuine POSIX ownership passthrough, and it is the specific evidence `/mnt/c`
+could never have supplied. `pragma journal_mode=wal` also negotiated successfully over
+the bind mount.
+
+**Residual caveat (not A-05).** `start_mac.sh` reused the pre-existing
+`finally-app:latest` image built on Windows on 2026-08-11, because the script builds only
+when the image is missing or `--build` is passed. The *run* path is proven on Linux; the
+Dockerfile *build* has not been exercised there. Phase 7 replaces these placeholder build
+stages with the real lockfile build and is the natural place to cover it.
 
 ---
 
 *Verified: 2026-08-11T17:05:00Z*
 *Verifier: Claude (gsd-verifier)*
 *Gaps acknowledged: 2026-08-11T18:45:00Z*
+*A-05 closed: 2026-08-12 — executed on Ubuntu WSL2 (ext4) after Docker Desktop WSL integration was enabled. `phase uat-passed 02 --require-verification` now returns `passed: true`, blockers empty.*
+
+Note: the `human_verification` frontmatter entries are kept verbatim as the record of
+why each item was routed to a human at verification time. The first entry's "no POSIX
+host available" reason was true then and is superseded now; `02-UAT.md` carries the
+current results for all four.

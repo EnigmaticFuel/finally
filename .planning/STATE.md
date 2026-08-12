@@ -2,43 +2,43 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 02
-current_phase_name: walking-skeleton-container
-status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-08-11T11:00:05.101Z"
-last_activity: 2026-08-11
-last_activity_desc: Phase 02 execution started
+current_phase: 3
+current_phase_name: Portfolio & Watchlist APIs
+status: planning
+stopped_at: Session resumed at the Phase 2/3 boundary, proceeding to Phase 3 planning
+last_updated: "2026-08-12T15:27:22.509Z"
+last_activity: 2026-08-12
+last_activity_desc: Phase 02 complete, transitioned to Phase 3
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 9
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-06)
+See: .planning/PROJECT.md (updated 2026-08-12)
 
 **Core value:** The whole loop works as one experience: watch → trade → visualize → chat
-**Current focus:** Phase 02 — walking-skeleton-container
+**Current focus:** Phase 3 — Portfolio & Watchlist APIs
 
 ## Current Position
 
-Phase: 02 (walking-skeleton-container) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 02
-Last activity: 2026-08-11 — Phase 02 execution started
+Phase: 3 — Portfolio & Watchlist APIs
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-12 — Phase 02 complete, transitioned to Phase 3
 
-Progress: [█░░░░░░░░░] 14% (1/7 phases, 5 plans complete)
+Progress: [██░░░░░░░░] 29% (2/7 phases built, 9 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 5
+- Total plans completed: 9
 - Average duration: —
 - Total execution time: 0.0 hours
 
@@ -47,6 +47,7 @@ Progress: [█░░░░░░░░░] 14% (1/7 phases, 5 plans complete)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 5 | - | - |
+| 02 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -70,6 +71,8 @@ Recent decisions affecting current work:
 - [Phase 1]: `app.frontend()` registered after both routers — the mount-order hazard is closed and proven by `test_api_not_shadowed` over real HTTP.
 - [Phase 1]: `BEGIN IMMEDIATE` on every write; the concurrency test asserts the final stored value, not just absence of errors.
 - [Phase 1]: Two prohibitions accepted without automated guards (trades append-only, db rewrite gate) — R-03/R-04 in `01-SECURITY.md`.
+- [Phase 2]: A-05 closed 2026-08-12 — the `.sh` pair ran on Ubuntu WSL2 (ext4) once Docker Desktop's WSL integration was enabled. D-06's root-user rationale is now proven, not reasoned: container `uid=0` writes through a bind mount whose files are uid 1000, and a root-written file lands on ext4 as uid 0 beside them — ownership `drvfs` cannot fake.
+- [Phase 2]: The Dockerfile *build* still has not run on Linux, only the run path. `start_mac.sh` builds only when the image is missing or `--build` is passed, and it reused the Windows-built image. Phase 7 replaces these placeholder build stages and is the natural place to cover it.
 
 ### Pending Todos
 
@@ -79,7 +82,7 @@ Recent decisions affecting current work:
 
 - **Accepted risk, not a task:** the project lives inside OneDrive and `db/finally.db` is tracked in git. If `database is locked` appears, this is the cause — diagnose it, but do not plan a relocation or an untracking. See PROJECT.md Key Decisions. *(Phase 1 saw no lock errors: the concurrency suite passes 6-way contention against a real file DB.)*
 - **Unverified:** live structured-output behaviour through OpenRouter → Cerebras. Spike it in Phase 6 before writing the chat router.
-- **[Phase 2] Deferred from Phase 1:** the lazy DB init is wired and proven, but nothing triggers it from an HTTP request yet — `run_db` has no app-side caller until Phase 3's routers land. The seam is complete; no further wiring needed.
+- **[Phase 3] Deferred from Phase 1:** the lazy DB init is wired and proven, but nothing triggers it from an HTTP request yet — `run_db` has no app-side caller until Phase 3's routers land. The seam is complete; no further wiring needed. *(Confirmed live on 2026-08-12: a running container never creates a `-wal` sidecar and `finally.db`'s mtime does not move, because no code path reaches the database yet.)*
 - **[Phase 6] The `api-coverage` gate was overridden as a false positive for Phase 1.** It fires on the surface nouns `api`/`rest`. Phase 6 is the first phase with genuine external-API integration, and the gate should be honored there.
 
 ## Deferred Items
@@ -92,6 +95,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T17:17:41.779Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-walking-skeleton-container/02-CONTEXT.md
+Last session: 2026-08-12
+Stopped at: Phase 2 complete and transitioned, ready to plan Phase 3
+Resume file: None
