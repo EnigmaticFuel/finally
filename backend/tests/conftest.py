@@ -49,10 +49,18 @@ def app(db_path: Path) -> FastAPI:
     through, rather than by monkeypatching FINALLY_DB_PATH, which would depend
     on import-time ordering in config.py.
 
+    state.db_path is set as well, and the line is not redundant with the
+    override: the override covers every request-scoped caller, but a
+    lifespan-owned background task has no request and reads app.state.db_path
+    directly. Without it the snapshot task would be handed the real DB_PATH and
+    would append rows to the git-tracked db/finally.db in any test that enters
+    lifespan.
+
     Lifespan has not run yet, so the cache is empty and the market source is
     unstarted. Tests needing a live feed drive the lifespan themselves or serve
     the app from uvicorn.
     """
     application = create_app()
     application.dependency_overrides[get_db_path] = lambda: db_path
+    application.state.db_path = db_path
     return application
