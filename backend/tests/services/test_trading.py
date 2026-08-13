@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from app.services.trading import validate_quantity
 FILL_PRICE = 100.0
 QUANTITY = 3.0
 UNWATCHED = "PYPL"
+PRICELESS = "ZZZ"
 
 
 @pytest.fixture
@@ -343,3 +345,77 @@ class TestInsufficientCash:
 
         with pytest.raises(TradeError, match="Insufficient cash"):
             await execute_trade(seeded_db, cache, UNWATCHED, "buy", STARTING_CASH)
+
+
+class TestPriceWait:
+    """The trade path routes through wait_for_price and reports it faithfully (PORT-08).
+
+    wait_for_price is tested in the frozen market module; what is proven here is
+    that a trade waits on it, fills at exactly what it returned, and lets its
+    failure through unchanged. Timings are one-sided and no elapsed duration is
+    asserted: this repo already carries one timer-granularity flake on Windows,
+    and a second one would buy a boundary nobody can observe.
+    """
+
+    async def test_a_price_arriving_during_the_wait_fills(self, seeded_db: Path) -> None:
+        """A ticker priced 50ms after the call fills at that price, inside the 2s window."""
+        price_cache = PriceCache()
+
+        async def seed_later() -> None:
+            await asyncio.sleep(0.05)
+            price_cache.update(PRICELESS, FILL_PRICE)
+
+        task = asyncio.create_task(seed_later())
+        result = await execute_trade(seeded_db, price_cache, PRICELESS, "buy", 1.0)
+
+        assert result.fill_price == FILL_PRICE
+        await task
+
+    async def test_a_ticker_that_never_prices_raises_after_the_wait(
+        self, seeded_db: Path
+    ) -> None:
+        """The cache's own message, naming the ticker, reaches the caller unchanged.
+
+        This surfaces as a bare ValueError rather than a TradeError, and reaches
+        400 through the bare-ValueError handler. The message fragment is what is
+        asserted: TradeError subclasses ValueError, so catching the type alone
+        would also pass if the quantity validator had fired instead.
+        """
+        with pytest.raises(ValueError, match=f"No price available for {PRICELESS}"):
+            await execute_trade(seeded_db, PriceCache(), PRICELESS, "buy", 1.0)
+
+    async def test_the_fill_after_the_wait_is_the_cache_float_untouched(
+        self, seeded_db: Path
+    ) -> None:
+        """The service returns the cache's own float and rounds nothing of its own.
+
+        PriceCache.update normalizes every price to cents as it stores it, so a
+        sub-cent price never reaches this seam at all - that rounding belongs to
+        the frozen market module, upstream. What is pinned here is that the
+        service adds none of its own: fill_price is exactly what wait_for_price
+        returned, and total_cost is the raw product, which a round_money applied
+        to the returned figure would visibly change.
+        """
+        price_cache = PriceCache()
+        price_cache.update(PRICELESS, 190.123456)
+        cached = price_cache.get_price(PRICELESS)
+
+        result = await execute_trade(seeded_db, price_cache, PRICELESS, "buy", 0.3333)
+
+        assert result.fill_price == cached
+        assert result.total_cost == cached * 0.3333
+        assert result.total_cost != round(result.total_cost, 2), "the derived figure stays raw"
+
+    async def test_a_bad_quantity_is_reported_before_the_price_wait(
+        self, seeded_db: Path
+    ) -> None:
+        """Cheap checks run first, so the failure names the quantity, not the price.
+
+        Had the price wait run first, this call would burn the full two-second
+        window and then report the wrong reason.
+        """
+        with pytest.raises(TradeError) as refusal:
+            await execute_trade(seeded_db, PriceCache(), PRICELESS, "buy", 0)
+
+        assert POSITIVITY in str(refusal.value)
+        assert "No price available" not in str(refusal.value)
