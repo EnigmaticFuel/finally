@@ -114,13 +114,13 @@ Plans:
   4. Portfolio value history accumulates — one snapshot on every trade plus one every 30 seconds when the value actually changed — and is retrievable with `?limit=` and `?since=`.
   5. A user can reset to the starting state: $10,000 cash and no positions.
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 - [x] 03-01-PLAN.md
 - [x] 03-02-PLAN.md
 - [x] 03-03-PLAN.md
 - [x] 03-04-PLAN.md
-- [ ] 03-05-PLAN.md
+- [x] 03-05-PLAN.md
 
 **Service seam**: `services/trading.execute_trade()` and `services/watchlist.add/remove()` exist because each has two independent callers (manual API and, later, the LLM). Phase 6 must route through these exact functions, so their signatures are a contract.
 
@@ -212,7 +212,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Foundation & Spine | 5/5 | Complete    | 2026-08-06 |
 | 2. Walking-Skeleton Container | 4/4 | Complete    | 2026-08-12 |
-| 3. Portfolio & Watchlist APIs | 4/5 | In Progress|  |
+| 3. Portfolio & Watchlist APIs | 5/5 | In Progress|  |
 | 4. Frontend Shell | 0/TBD | Not started | - |
 | 5. Charts & Visualization | 0/TBD | Not started | - |
 | 6. AI Chat Copilot | 0/TBD | Not started | - |
