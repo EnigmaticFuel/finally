@@ -193,6 +193,12 @@ None - no external service configuration required.
 - One manual verification remains open (D6): watching `total_value` and `unrealized_pnl` drift against a live container over several minutes. It cannot be automated because the test suite drives a fixed fake cache.
 - 03-05 still owns the `app/services/__init__.py` reconciliation; the three new service functions are not yet in the package's public `__all__` by design.
 
+## Self-Check: PASSED
+
+All five claimed files exist on disk and all six claimed commits are present in the branch history
+(`f261d75`, `2428875`, `5ef1d9d`, `bd44d0e`, `e995ee2`, `8390678`). `git diff --name-only` against
+the plan's base lists exactly the four files in `files_modified`, and `db/finally.db` is unmodified.
+
 ---
 *Phase: 03-portfolio-watchlist-apis*
 *Completed: 2026-08-13*
