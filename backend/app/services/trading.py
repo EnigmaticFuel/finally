@@ -25,11 +25,13 @@ from pathlib import Path
 
 from app.db import (
     add_watchlist_ticker,
+    delete_position,
     get_position,
     get_positions,
     get_profile,
     insert_snapshot,
     insert_trade,
+    is_zero,
     round_money,
     round_quantity,
     run_db,
@@ -131,6 +133,12 @@ def _apply_trade(
     Every value handed to a query function is raw. Rounding happens once at the
     queries.py write boundary, and round_money appears here only inside the
     sufficiency comparison, never on a value being stored.
+
+    A sell leaves avg_cost alone: selling part of a holding does not change the
+    cost basis per share, and a sell to zero deletes the row so no cost basis
+    ever survives with no shares behind it. The remainder is tested with is_zero
+    rather than an equality, because repeated fractional sells leave residue far
+    below a share that an equality would strand as an unsellable dust holding.
     """
     with writing(conn):
         add_watchlist_ticker(conn, ticker)
@@ -140,14 +148,14 @@ def _apply_trade(
         cash = profile["cash_balance"]
         cost = fill_price * quantity
 
+        held = position["quantity"] if position else 0.0
+
         if side == "buy":
             if round_money(cost) > round_money(cash):
                 raise TradeError(f"Insufficient cash: need ${cost:.2f}, have ${cash:.2f}")
             new_cash = cash - cost
-            held = position["quantity"] if position else 0.0
             held_avg = position["avg_cost"] if position else 0.0
             new_quantity = held + quantity
-            update_cash_balance(conn, new_cash)
             upsert_position(
                 conn,
                 ticker,
@@ -155,8 +163,16 @@ def _apply_trade(
                 (held * held_avg + quantity * fill_price) / new_quantity,
             )
         else:
-            raise TradeError("Sell orders are not yet wired up")
+            remaining = held - quantity
+            if remaining < 0 and not is_zero(remaining):
+                raise TradeError(f"Insufficient shares: need {quantity:g} {ticker}, have {held:g}")
+            new_cash = cash + cost
+            if is_zero(remaining):
+                delete_position(conn, ticker)
+            else:
+                upsert_position(conn, ticker, remaining, position["avg_cost"])
 
+        update_cash_balance(conn, new_cash)
         executed_at = insert_trade(conn, ticker, side, quantity, fill_price)
         total_value = value_portfolio(new_cash, get_positions(conn), prices)[1]
         insert_snapshot(conn, total_value)
