@@ -7,6 +7,7 @@ import socket
 import threading
 import time
 from collections.abc import Iterator
+from pathlib import Path
 
 import httpx
 import pytest
@@ -14,6 +15,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.db.connection import connect, ensure_initialized
+from app.db.queries import get_snapshots
 from app.db.seed import DEFAULT_TICKERS
 from app.main import create_app
 from app.market import PriceCache
@@ -96,7 +99,7 @@ def test_create_app_builds_cache_before_routers(app: FastAPI) -> None:
 
 
 async def test_lifespan_starts_and_stops_source(app: FastAPI) -> None:
-    """Lifespan owns the market source: started on enter, stopped on exit.
+    """Lifespan owns both background tasks: started on enter, gone on exit.
 
     The expected tickers come from app.db.seed, the same constant the database
     seeds the watchlist with, so this also pins that the two cannot diverge.
@@ -107,9 +110,30 @@ async def test_lifespan_starts_and_stops_source(app: FastAPI) -> None:
     async with app.router.lifespan_context(app):
         assert source.get_tickers() == list(DEFAULT_TICKERS)
         assert "simulator-loop" in _running_task_names()
+        assert "snapshot-loop" in _running_task_names()
 
     assert "simulator-loop" not in _running_task_names()
+    assert "snapshot-loop" not in _running_task_names()
     assert app.state.market_source is source
+
+
+async def test_lifespan_records_no_snapshot_on_a_short_life(
+    app: FastAPI, db_path: Path
+) -> None:
+    """An app that lives for milliseconds writes nothing: the loop sleeps first.
+
+    ensure_initialized is required setup rather than incidental. The lifespan
+    starts and stops the market source and seeds nothing, and seeding otherwise
+    happens inside run_db, which the sleeping snapshot task never reaches - so
+    without this call there would be no database to count rows in.
+    """
+    ensure_initialized(db_path)
+
+    async with app.router.lifespan_context(app):
+        pass
+
+    with connect(db_path) as conn:
+        assert len(get_snapshots(conn)) == 1
 
 
 def test_cache_via_dependency(app: FastAPI) -> None:
