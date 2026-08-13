@@ -8,7 +8,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.api.errors import register_exception_handlers
 from app.api.health import create_health_router
+from app.api.portfolio import create_portfolio_router
 from app.config import DB_PATH
 from app.db.seed import DEFAULT_TICKERS
 from app.market import PriceCache, create_market_data_source, create_stream_router
@@ -45,11 +47,13 @@ def create_app() -> FastAPI:
         await source.stop()
 
     app = FastAPI(title="FinAlly", lifespan=lifespan)
+    register_exception_handlers(app)
     app.state.price_cache = cache
     app.state.market_source = source
     app.state.db_path = DB_PATH
 
     app.include_router(create_health_router(cache, source))
+    app.include_router(create_portfolio_router(cache))
     app.include_router(create_stream_router(cache))
     app.frontend("/", directory=STATIC_DIR, fallback="index.html")
     return app
