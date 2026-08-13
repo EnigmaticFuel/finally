@@ -67,7 +67,7 @@ created: 2026-08-12
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
-**On the `-k` selectors.** Only four survive: `-k sell`, `-k quantity`, `-k wait`, `-k reset`,
+**On the `-k` selectors.** Only six survive: `-k sell`, `-k quantity`, `-k wait`, `-k reset`,
 `-k read` and `-k remove` — each matches a **class name** an owning plan pins verbatim
 (`TestSell`, `TestQuantityValidation`, `TestPriceWait`, `TestResetPortfolio`, `TestReadWatchlist`,
 `TestRemoveTicker`), and `-k` matching is case-insensitive substring matching, so the class name is

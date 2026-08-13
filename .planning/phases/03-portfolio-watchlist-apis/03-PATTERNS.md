@@ -2,7 +2,7 @@
 
 **Mapped:** 2026-08-12
 **Files analyzed:** 17 new/modified files
-**Analogs found:** 13 / 17
+**Analogs found:** 14 / 17
 
 Every excerpt below is verbatim from the live tree, with file path and line numbers. Where no
 analog exists it is stated as such rather than invented.
