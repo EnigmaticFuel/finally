@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-08-13T22:31:08.677Z",
+  "phase": "03",
+  "phase_name": "portfolio-watchlist-apis",
+  "phase_dir": ".planning/phases/03-portfolio-watchlist-apis",
+  "plan": 5,
+  "task": 5,
+  "total_tasks": 5,
+  "status": "paused",
+  "pause_note": "The pausing session's conversation was cleared before /gsd-pause-work ran. This handoff is reconstructed from planning artifacts and git history, not from in-session memory. Anything a resuming agent needs is in the phase artifacts named below.",
+  "completed_tasks": [
+    {"id": 1, "name": "03-01 API/service seam and error taxonomy", "status": "done", "commit": "see 03-01-SUMMARY.md"},
+    {"id": 2, "name": "03-02 GET /api/portfolio and valuation", "status": "done", "commit": "see 03-02-SUMMARY.md"},
+    {"id": 3, "name": "03-03 POST /api/portfolio/trade and reset", "status": "done", "commit": "e201a57"},
+    {"id": 4, "name": "03-04 Watchlist API", "status": "done", "commit": "6491de9"},
+    {"id": 5, "name": "03-05 Background snapshot task", "status": "done", "commit": "8ef96db"},
+    {"id": 6, "name": "Code review (/gsd-code-review)", "status": "done", "commit": "ab7fab2"},
+    {"id": 7, "name": "Phase verification (/gsd-verify-work)", "status": "done", "commit": "b6fcc8a"}
+  ],
+  "remaining_tasks": [
+    {"id": 8, "name": "Decide the 03-SEAM-CONTRACT.md question: how execute_trade reaches the MarketDataSource (G-01/CR-02)", "status": "not_started"},
+    {"id": 9, "name": "Close G-01 + G-02 together: register traded/watched symbols with the market source; boot the source from persisted watchlist rows unioned with DEFAULT_TICKERS", "status": "not_started"},
+    {"id": 10, "name": "Close G-03: guarantee source.stop() runs even when snapshot_loop dies of a non-CancelledError, without swallowing the failure", "status": "not_started"},
+    {"id": 11, "name": "Fix or dispose of the remaining review findings: WR-01..WR-04, IN-01..IN-05", "status": "not_started"},
+    {"id": 12, "name": "Re-run /gsd-verify-work for phase 03 and clear the 3 human-verification items", "status": "not_started"},
+    {"id": 13, "name": "Review the 11 judgment-tier prohibitions flagged non-authoritative by the autonomous verifier", "status": "not_started"}
+  ],
+  "blockers": [
+    {
+      "description": "G-01 / CR-02 - execute_trade awaits wait_for_price before the transaction and never registers the symbol with the market source, so 'trading an unwatched ticker adds it to the watchlist' (PORT-07, ROADMAP SC2) can never fill. The passing test only passes because its fixture hand-injects PYPL into the price cache.",
+      "type": "technical",
+      "workaround": "None. Requires a seam-contract decision - execute_trade(db_path, cache, ticker, side, quantity) holds no MarketDataSource by design."
+    },
+    {
+      "description": "G-02 / CR-01 - main.py:55 starts the source from the DEFAULT_TICKERS constant, not the persisted watchlist. A user-added ticker survives restart in the DB but gets no feed: null price, excluded from total_value, unsellable (400), unremovable (409).",
+      "type": "technical",
+      "workaround": "None. Full portfolio reset is the only in-app recovery."
+    },
+    {
+      "description": "G-03 / CR-03 - when snapshot_loop dies of anything but CancelledError, the exception propagates out of the lifespan before source.stop() at main.py:63, so the market source and simulator-loop task outlive the app.",
+      "type": "technical",
+      "workaround": "Cosmetic on the happy path; only bites after a snapshot-loop failure such as a transient 'database is locked'."
+    }
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Decide how execute_trade reaches the MarketDataSource - change the signature 03-SEAM-CONTRACT.md locks as one-way, or reach the source another way", "context": "The verifier explicitly refused to patch this silently; it is a contract question for the developer.", "blocking": true},
+    {"action": "Live-price drift check against a running container: hold a position, watch GET /api/portfolio across SSE frames, confirm total_value and unrealized_pnl move and reconcile as cash + sum(quantity * live price)", "context": "Carried from 03-03 D6. The suite drives a fixed fake cache, so drift is only observable live.", "blocking": false},
+    {"action": "Confirm PORT-14's narrow 'starting state' reading - reset preserves the watchlist and the trades audit log", "context": "Carried from 03-03 D7. Product intent, not a code property.", "blocking": false},
+    {"action": "Review the 11 judgment-tier prohibition verdicts in 03-VERIFICATION.md", "context": "Autonomous run; every verdict is flagged non-authoritative by design.", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "G-01 and G-02 are one missing seam seen from two directions and must be planned together", "rationale": "Both reduce to: nothing reconciles the market data source's ticker set with the tickers the user actually cares about", "phase": "03"},
+    {"decision": "The snapshot loop dying loudly is correct and required by PORT-12's raise-don't-swallow prohibition", "rationale": "G-03's defect is only that the corpse blocks teardown, not that the loop dies", "phase": "03"},
+    {"decision": "T-03-55 (unbounded portfolio_snapshots growth) dispositioned 'accept'", "rationale": "Storage-only degradation; read exposure capped by HISTORY_MAX_LIMIT = 5000 at api/portfolio.py:18", "phase": "03"}
+  ],
+  "uncommitted_files": [".claude/settings.local.json"],
+  "next_action": "Run /gsd-plan-phase --gaps for phase 03 - the structured gaps are in the frontmatter of .planning/phases/03-portfolio-watchlist-apis/03-VERIFICATION.md. Answer the seam-contract question first; it shapes the plan for G-01/G-02.",
+  "context_notes": "Phase 03 execution is complete: 5/5 plans landed, all summaries written, 351 tests green, no regression against phases 1-2. Review and verification then ran and both found the same three defects. Do not read the green suite as proof - the PORT-07 test is green because its fixture performs the registration step production lacks. Verification scored 69/72 must-haves. The phase is NOT done; it is at the gap-closing gate."
+}
