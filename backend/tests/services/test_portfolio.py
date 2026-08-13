@@ -18,13 +18,29 @@ from pathlib import Path
 import pytest
 
 from app.db.connection import connect
-from app.db.queries import get_positions, insert_snapshot, upsert_position
+from app.db.queries import (
+    add_watchlist_ticker,
+    get_positions,
+    get_profile,
+    get_watchlist,
+    insert_snapshot,
+    insert_trade,
+    update_cash_balance,
+    upsert_position,
+)
 from app.db.seed import STARTING_CASH, apply_schema, seed_fresh
 from app.market import PriceCache
-from app.services.portfolio import get_history, get_portfolio, value_portfolio
+from app.services.portfolio import (
+    get_history,
+    get_portfolio,
+    reset_portfolio,
+    value_portfolio,
+)
 
 PRECISE_QUANTITY = 1.2345
 PRECISE_PRICE = 190.5678
+SPENT_CASH = 1234.56
+EXTRA_TICKER = "PYPL"
 
 
 @pytest.fixture
@@ -43,6 +59,36 @@ def seeded_db(db_path: Path) -> Path:
         apply_schema(connection)
         seed_fresh(connection)
     return db_path
+
+
+@pytest.fixture
+def loaded_db(seeded_db: Path) -> Path:
+    """A used portfolio: two positions, spent cash, an added ticker, one trade.
+
+    The pre-state is built directly rather than through a trade so these tests
+    stay independent of the trade path.
+    """
+    with connect(seeded_db) as connection:
+        upsert_position(connection, "AAPL", 5.0, 100.0)
+        upsert_position(connection, "TSLA", 2.0, 250.0)
+        update_cash_balance(connection, SPENT_CASH)
+        add_watchlist_ticker(connection, EXTRA_TICKER)
+        insert_trade(connection, "AAPL", "buy", 5.0, 100.0)
+    return seeded_db
+
+
+TRADE_COUNT = "SELECT COUNT(*) FROM trades"
+SNAPSHOT_COUNT = "SELECT COUNT(*) FROM portfolio_snapshots"
+
+
+def _count(db: Path, sql: str) -> int:
+    """Run a counting query against the database.
+
+    trades deliberately has no reader in queries.py, so a test-only count is the
+    only way to prove a reset leaves the audit log alone.
+    """
+    with connect(db) as connection:
+        return connection.execute(sql).fetchone()[0]
 
 
 class TestValuePortfolio:
@@ -189,3 +235,91 @@ class TestGetHistory:
             rows[1]["recorded_at"],
         ]
         assert all(row["recorded_at"] >= boundary for row in selected)
+
+
+class TestResetPortfolio:
+    """Reset returns the portfolio, and only the portfolio, to the start."""
+
+    async def test_cash_returns_and_every_position_goes(self, loaded_db: Path) -> None:
+        """The starting balance is back and nothing is held."""
+        await reset_portfolio(loaded_db)
+
+        with connect(loaded_db) as connection:
+            assert get_profile(connection)["cash_balance"] == STARTING_CASH
+            assert get_positions(connection) == []
+
+    async def test_the_watchlist_survives_untouched(self, loaded_db: Path) -> None:
+        """Curated tickers are not the user's portfolio and are not reset.
+
+        This is also what proves the seed helper was not reused: seed_fresh
+        writes the ten defaults, which would have dropped the added ticker back
+        out of a set comparison only by luck, and would have re-added any the
+        user had removed.
+        """
+        with connect(loaded_db) as connection:
+            before = {row["ticker"] for row in get_watchlist(connection)}
+
+        await reset_portfolio(loaded_db)
+
+        with connect(loaded_db) as connection:
+            after = {row["ticker"] for row in get_watchlist(connection)}
+        assert after == before
+        assert EXTRA_TICKER in after
+
+    async def test_the_trades_log_is_not_written_to(self, loaded_db: Path) -> None:
+        """A reset is not a sale, so no synthetic row joins the audit log."""
+        before = _count(loaded_db, TRADE_COUNT)
+
+        await reset_portfolio(loaded_db)
+
+        assert _count(loaded_db, TRADE_COUNT) == before
+
+    async def test_one_snapshot_records_the_step(self, loaded_db: Path) -> None:
+        """History shows the drop immediately rather than a gap for 30 seconds."""
+        before = _count(loaded_db, SNAPSHOT_COUNT)
+
+        await reset_portfolio(loaded_db)
+
+        assert _count(loaded_db, SNAPSHOT_COUNT) == before + 1
+        assert (await get_history(loaded_db, limit=1))[0]["total_value"] == STARTING_CASH
+
+    async def test_the_payload_is_the_portfolio_shape(self, loaded_db: Path) -> None:
+        """The same three keys GET /api/portfolio returns, so a refetch is uniform."""
+        payload = await reset_portfolio(loaded_db)
+
+        assert payload == {
+            "cash_balance": STARTING_CASH,
+            "total_value": STARTING_CASH,
+            "positions": [],
+        }
+
+    async def test_a_second_reset_is_safe(self, loaded_db: Path) -> None:
+        """Resetting twice returns the same body and appends one more snapshot.
+
+        The unchanged-value skip belongs to the 30-second task alone, so a second
+        row at the same value is correct here.
+        """
+        first = await reset_portfolio(loaded_db)
+        before = _count(loaded_db, SNAPSHOT_COUNT)
+
+        second = await reset_portfolio(loaded_db)
+
+        assert second == first
+        assert _count(loaded_db, SNAPSHOT_COUNT) == before + 1
+
+    async def test_a_failure_part_way_through_commits_nothing(
+        self, loaded_db: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One transaction covers the deletes, the cash write and the snapshot."""
+
+        def boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("snapshot write failed")
+
+        monkeypatch.setattr("app.services.portfolio.insert_snapshot", boom)
+
+        with pytest.raises(RuntimeError):
+            await reset_portfolio(loaded_db)
+
+        with connect(loaded_db) as connection:
+            assert len(get_positions(connection)) == 2
+            assert get_profile(connection)["cash_balance"] == SPENT_CASH
