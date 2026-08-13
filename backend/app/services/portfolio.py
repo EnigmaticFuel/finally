@@ -17,7 +17,17 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from app.db import get_positions, get_profile, get_snapshots, run_db
+from app.db import (
+    STARTING_CASH,
+    delete_position,
+    get_positions,
+    get_profile,
+    get_snapshots,
+    insert_snapshot,
+    run_db,
+    update_cash_balance,
+    writing,
+)
 from app.market import PriceCache
 
 # --- Valuation ---
@@ -121,3 +131,49 @@ async def get_history(
     return [
         {"total_value": row["total_value"], "recorded_at": row["recorded_at"]} for row in rows
     ]
+
+
+# --- Reset ---
+
+
+def _apply_reset(conn: sqlite3.Connection) -> None:
+    """Clear the portfolio and restore the starting cash, as one transaction.
+
+    One BEGIN IMMEDIATE covers everything below, so a concurrent trade cannot
+    land between the clearing and the cash write and leave a holding behind with
+    restored cash. Any raise inside rolls the whole unit back, which is why no
+    compensating undo code belongs here.
+
+    There is no bulk-delete query and app/db/ is frozen for this phase, so
+    composing the existing per-ticker delete inside a loop is the intended shape,
+    not a missing query function.
+
+    The recorded value is STARTING_CASH because nothing is held by then, and
+    value_portfolio(STARTING_CASH, [], prices) returns exactly STARTING_CASH for
+    any prices mapping - the one valuation rule is satisfied here rather than
+    bypassed, which is also why this path takes no cache: an unused collaborator
+    argument would be a lie about the dependency.
+
+    Nothing outside the positions table and the profile cash balance is touched.
+    The watchlist, the append-only trades log and chat_messages survive: a user
+    who resets a portfolio has not asked to lose the tickers they curated or the
+    audit trail of what they did, and a reset is not a sale, so no trade row is
+    written.
+    """
+    with writing(conn):
+        for position in get_positions(conn):
+            delete_position(conn, position["ticker"])
+        update_cash_balance(conn, STARTING_CASH)
+        insert_snapshot(conn, STARTING_CASH)
+
+
+async def reset_portfolio(db_path: Path) -> dict[str, object]:
+    """Return the portfolio to its starting state and report the result.
+
+    The body is the same three keys get_portfolio returns, so the client's
+    post-action refetch rule needs no special case. The snapshot is always
+    written: the unchanged-value skip is the 30-second task's rule alone, so a
+    second consecutive reset correctly appends a second row at the same value.
+    """
+    await run_db(db_path, _apply_reset)
+    return {"cash_balance": STARTING_CASH, "total_value": STARTING_CASH, "positions": []}
