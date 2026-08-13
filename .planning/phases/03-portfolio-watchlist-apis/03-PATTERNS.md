@@ -1,8 +1,8 @@
 # Phase 3: Portfolio & Watchlist APIs - Pattern Map
 
 **Mapped:** 2026-08-12
-**Files analyzed:** 15 new/modified files
-**Analogs found:** 11 / 15
+**Files analyzed:** 17 new/modified files
+**Analogs found:** 13 / 17
 
 Every excerpt below is verbatim from the live tree, with file path and line numbers. Where no
 analog exists it is stated as such rather than invented.
@@ -16,6 +16,8 @@ analog exists it is stated as such rather than invented.
 | `backend/app/services/portfolio.py` | service | CRUD (read) + pure transform | `backend/app/db/queries.py` (plain-def-over-conn) + `backend/app/market/cache.py` (pure read surface) | partial |
 | `backend/app/services/trading.py` | service | read-modify-write in one transaction | `backend/app/db/connection.py::writing` + `queries.py::upsert_position` | partial |
 | `backend/app/services/watchlist.py` | service | CRUD + side-effect on the market source | `backend/app/db/queries.py::add_watchlist_ticker` / `remove_watchlist_ticker` | partial |
+| `backend/app/services/snapshots.py` | service (background writer) | timer-driven read-modify-write | `backend/app/services/trading.py` (built in this phase by `03-01`/`03-02`) — `03-05` Task 1 copies its shape exactly: module docstring, `# --- Section ---` dividers, plain `def _record_if_changed(conn, ...)` handed to `run_db`, async seam above it | partial |
+| `backend/tests/services/conftest.py` | test fixture (fake collaborator) | — | `backend/app/market/interface.py` — the six abstract members `RecordingSource` implements; `03-04` Task 1 specifies the fake against that interface, not against `SimulatorDataSource` | partial |
 | `backend/app/api/portfolio.py` | route (router factory) | request-response | `backend/app/api/health.py` | exact |
 | `backend/app/api/watchlist.py` | route (router factory) | request-response | `backend/app/api/health.py` | exact |
 | `backend/app/api/models.py` | model (Pydantic) | transform | **none** — no Pydantic model exists in the repo yet | none |
@@ -336,6 +338,39 @@ position → `Conflict` (409), raised inside the same `writing()` block (D-08).
 The `if self._sim is None: return` line is Pitfall 4 in the source: before `start()`, `add_ticker`
 is a silent no-op, so route tests must seed the cache directly rather than assert a price appears.
 Note also the `%s` lazy log formatting — copy that style in the services.
+
+---
+
+### `app/services/snapshots.py` (service, timer-driven read-modify-write)
+
+**Analog:** `backend/app/services/trading.py`, built earlier in this same phase by `03-01` and
+completed by `03-02`. There is no pre-existing background writer in the repo, so the analog is the
+other read-modify-write service rather than anything in the live tree at planning time.
+
+`_record_if_changed(conn, prices)` is the same species as `_apply_trade(conn, ...)`: a plain `def`
+taking the connection first, handed to `run_db`, with the whole read-compare-write inside one
+`with writing(conn):` block (the `connection.py:73-92` excerpt above). It reuses `value_portfolio`
+from `app/services/portfolio.py` rather than restating the valuation arithmetic (D-18), and
+`round_money` (`money.py:33`, quoted above) appears only in the unchanged-skip comparison, never on
+the value handed to `insert_snapshot`.
+
+The loop itself follows the market module's task conventions: `asyncio.create_task(...,
+name="snapshot-loop")` mirroring `simulator.py:247`, the cancel block copied verbatim from
+`SimulatorDataSource.stop` (`simulator.py:250-258`, quoted below), and `%s` lazy log formatting.
+
+---
+
+### `tests/services/conftest.py` (test fixture, fake collaborator)
+
+**Analog:** `backend/app/market/interface.py` — `RecordingSource` is written against the
+`MarketDataSource` ABC and implements all six abstract members, rather than subclassing or
+monkeypatching `SimulatorDataSource`. That is deliberate: `SimulatorDataSource.add_ticker` returns
+immediately before `start()` (the `if self._sim is None: return` line quoted in the watchlist
+section, Pitfall 4), so a real unstarted source makes a passing registration test prove nothing.
+
+Fixture style follows `backend/tests/conftest.py:38-58` (quoted below): a plain `@pytest.fixture`
+returning a fresh instance, docstring stating what it is for. It lives under `tests/services/`
+rather than in the root conftest so Phase 1's fixtures stay untouched (D-22).
 
 ---
 

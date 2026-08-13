@@ -727,21 +727,28 @@ Extracted from `./CLAUDE.md`, `./.claude/CLAUDE.md`, `backend/CLAUDE.md`, and `~
 | A5 | Reset should delete positions with per-ticker `delete_position` calls in a loop | Open Question 1 | Medium — see Open Questions; a per-ticker loop is correct but O(n) statements |
 | A6 | `side` accepts only lowercase `"buy"`/`"sell"` | Trade rules | Low — PLAN.md §7 schema comment says `side TEXT ("buy" or "sell")` and the LLM schema in §9 emits lowercase; a case-insensitive normalize in the validator is the safe reading |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **PORT-14 reset has no bulk-delete query, and `app/db/queries.py` is frozen.**
+All three questions are answered below and each answer is carried into the plans: Q1's per-ticker
+delete loop into `03-03` Task 2, Q2's explicit single-line conftest task into `03-05` Task 2, and
+Q3's no-special-casing into `03-04`. Nothing here is still open.
+
+1. **(RESOLVED)** **PORT-14 reset has no bulk-delete query, and `app/db/queries.py` is frozen.**
    - What we know: `delete_position(conn, ticker, user_id)` deletes exactly one ticker [VERIFIED: backend/app/db/queries.py:121]. There is no `delete_all_positions`. `get_positions(conn)` returns every row [queries.py:65]. CONTEXT.md's `<specifics>` says a task appearing to need a new query function is "a signal to re-read `queries.py` first" — but this one genuinely does not exist.
    - What's unclear: whether the intended composition is `for row in get_positions(conn): delete_position(conn, row["ticker"])` inside one `writing()` block, or whether an exception to the freeze is warranted.
    - Recommendation: **use the loop.** It reuses the existing function, stays inside one `BEGIN IMMEDIATE`, is at most ~12 statements for a realistic portfolio, and keeps the freeze intact. Do not add a query function.
+   - Resolution: adopted verbatim in `03-03` Task 2 (`_apply_reset` iterates `get_positions` and calls `delete_position` per row inside one `writing()` block), with the freeze on `app/db/` intact.
 
-2. **Should the conftest `app` fixture be modified (Pitfall 1)?**
+2. **(RESOLVED)** **Should the conftest `app` fixture be modified (Pitfall 1)?**
    - What we know: D-22 says "Phase 3's route tests reuse this fixture verbatim"; CONTEXT.md's freeze names `app/db/` files and says `main.py` is the only Phase 1 *app* file edited — it does not name `tests/conftest.py`.
    - What's unclear: whether "verbatim" is a prohibition on extending the fixture.
    - Recommendation: **make it an explicit, single-line task with the rationale in the plan** (`application.state.db_path = db_path`), and pair it with the sleep-first snapshot loop so correctness does not depend on the fixture change alone. Flag it for the plan-checker rather than doing it silently.
+   - Resolution: adopted verbatim as `03-05` Task 2, a task of its own carrying the rationale, paired with `03-05` Task 1's sleep-first loop ordering as the second independent mitigation.
 
-3. **Does the watchlist response include tickers the user holds but somehow un-watched?**
+3. **(RESOLVED)** **Does the watchlist response include tickers the user holds but somehow un-watched?**
    - What we know: the invariant runs one way only — every position is watched, not every watched ticker is held (CONTEXT.md `<specifics>`). `GET /api/watchlist` reads `get_watchlist(conn)`, which is pure database state (D-15).
    - Recommendation: no special-casing. Database state is the answer.
+   - Resolution: adopted verbatim in `03-04` — `read_watchlist` returns one entry per `get_watchlist` row and nothing else, and a held-but-unwatched ticker cannot arise because every trade auto-adds its ticker (PORT-07) and a held ticker cannot be removed (WATCH-05).
 
 ## Environment Availability
 

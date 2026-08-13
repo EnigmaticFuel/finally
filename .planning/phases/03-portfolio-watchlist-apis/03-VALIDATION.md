@@ -44,28 +44,41 @@ created: 2026-08-12
 | Req ID | Behavior | Test Type | Automated Command | File Exists | Status |
 |--------|----------|-----------|-------------------|-------------|--------|
 | PORT-01 | Portfolio read: cash, total, per-position figures | unit + route | `pytest tests/services/test_portfolio.py tests/api/test_portfolio.py -q` | ❌ W0 | ⬜ pending |
-| PORT-02 | Buy decreases cash by fill amount | service | `pytest tests/services/test_trading.py -k buy -q` | ❌ W0 | ⬜ pending |
+| PORT-02 | Buy decreases cash by fill amount | service | `pytest tests/services/test_trading.py -q` | ❌ W0 | ⬜ pending |
 | PORT-03 | Sell increases cash by fill amount | service | `pytest tests/services/test_trading.py -k sell -q` | ❌ W0 | ⬜ pending |
-| PORT-04 | Buy over cash → 400 + message naming need/have | service + route | `pytest tests/services/test_trading.py -k insufficient_cash -q` | ❌ W0 | ⬜ pending |
-| PORT-05 | Sell over shares held → 400 | service | `pytest tests/services/test_trading.py -k insufficient_shares -q` | ❌ W0 | ⬜ pending |
+| PORT-04 | Buy over cash → 400 + message naming need/have | service + route | `pytest tests/services/test_trading.py tests/api/test_portfolio.py -q` | ❌ W0 | ⬜ pending |
+| PORT-05 | Sell over shares held → 400 | service | `pytest tests/services/test_trading.py -q` | ❌ W0 | ⬜ pending |
 | PORT-06 | 0 / negative / NaN / Infinity / >4dp → 400 | unit (parametrized) | `pytest tests/services/test_trading.py -k quantity -q` | ❌ W0 | ⬜ pending |
-| PORT-07 | Unwatched ticker auto-added by the trade | service | `pytest tests/services/test_trading.py -k auto_add -q` | ❌ W0 | ⬜ pending |
+| PORT-07 | Unwatched ticker auto-added by the trade | service | `pytest tests/services/test_trading.py -q` | ❌ W0 | ⬜ pending |
 | PORT-08 | 2s wait on a priceless ticker, then fill | service (fake cache populated on a timer) | `pytest tests/services/test_trading.py -k wait -q` | ❌ W0 | ⬜ pending |
-| PORT-09 | Sell to zero deletes the row | service | `pytest tests/services/test_trading.py -k delete_at_zero -q` | ❌ W0 | ⬜ pending |
-| PORT-10 | Response carries the server-side `fill_price` | route | `pytest tests/api/test_portfolio.py -k fill_price -q` | ❌ W0 | ⬜ pending |
-| PORT-11 | Every trade writes a snapshot | service | `pytest tests/services/test_trading.py -k snapshot -q` | ❌ W0 | ⬜ pending |
+| PORT-09 | Sell to zero deletes the row | service | `pytest tests/services/test_trading.py -q` | ❌ W0 | ⬜ pending |
+| PORT-10 | Response carries the server-side `fill_price` | route | `pytest tests/api/test_portfolio.py -q` | ❌ W0 | ⬜ pending |
+| PORT-11 | Every trade writes a snapshot | service | `pytest tests/services/test_trading.py -q` | ❌ W0 | ⬜ pending |
 | PORT-12 | 30s task writes on change, skips on no-change | unit (call the loop body directly, not the sleep) | `pytest tests/services/test_snapshots.py -q` | ❌ W0 | ⬜ pending |
-| PORT-13 | `?limit=` and `?since=` | route | `pytest tests/api/test_portfolio.py -k history -q` | ❌ W0 | ⬜ pending |
+| PORT-13 | `?limit=` and `?since=` | route | `pytest tests/api/test_portfolio.py -q` | ❌ W0 | ⬜ pending |
 | PORT-14 | Reset → $10k, no positions, watchlist untouched | service + route | `pytest tests/services/test_portfolio.py -k reset -q` | ❌ W0 | ⬜ pending |
 | WATCH-01 | Price, open, change-from-open, ~60 history points | route | `pytest tests/api/test_watchlist.py -k read -q` | ❌ W0 | ⬜ pending |
-| WATCH-02 | Invalid symbol → 400 | route | `pytest tests/api/test_watchlist.py -k invalid -q` | ❌ W0 | ⬜ pending |
-| WATCH-03 | Add registers with the live source | service (fake source recording calls) | `pytest tests/services/test_watchlist.py -k register -q` | ❌ W0 | ⬜ pending |
+| WATCH-02 | Invalid symbol → 400 | route | `pytest tests/api/test_watchlist.py -q` | ❌ W0 | ⬜ pending |
+| WATCH-03 | Add registers with the live source | service (fake source recording calls) | `pytest tests/services/test_watchlist.py -q` | ❌ W0 | ⬜ pending |
 | WATCH-04 | Remove an unheld ticker succeeds | route | `pytest tests/api/test_watchlist.py -k remove -q` | ❌ W0 | ⬜ pending |
-| WATCH-05 | Remove a held ticker → 409, readable message | service + route | `pytest tests/api/test_watchlist.py -k conflict -q` | ❌ W0 | ⬜ pending |
-| WATCH-06 | Remove an unwatched ticker → 404 | route | `pytest tests/api/test_watchlist.py -k not_found -q` | ❌ W0 | ⬜ pending |
+| WATCH-05 | Remove a held ticker → 409, readable message | service + route | `pytest tests/services/test_watchlist.py tests/api/test_watchlist.py -q` | ❌ W0 | ⬜ pending |
+| WATCH-06 | Remove an unwatched ticker → 404 | route | `pytest tests/api/test_watchlist.py -q` | ❌ W0 | ⬜ pending |
 | TEST-02 | Aggregate: trade execution + every rejection path | suite | `pytest tests/services -q` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+**On the `-k` selectors.** Only four survive: `-k sell`, `-k quantity`, `-k wait`, `-k reset`,
+`-k read` and `-k remove` — each matches a **class name** an owning plan pins verbatim
+(`TestSell`, `TestQuantityValidation`, `TestPriceWait`, `TestResetPortfolio`, `TestReadWatchlist`,
+`TestRemoveTicker`), and `-k` matching is case-insensitive substring matching, so the class name is
+enough. Every other selector this map originally carried — `insufficient_cash`,
+`insufficient_shares`, `auto_add`, `delete_at_zero`, `register`, `not_found`, `conflict`,
+`fill_price`, `history`, `invalid`, `buy`, `snapshot` — depended on underscore-separated *function*
+names that no plan pins, and an underscored selector does not match a CamelCase class name. A
+selector matching zero tests makes pytest **exit 5**, which post-execution validation reads as red.
+Those rows are relaxed to file-level runs rather than pinning function names across five plans; the
+per-requirement behavior each row names is still asserted, it is simply asserted by a file rather
+than isolated by a selector.
 
 ---
 
