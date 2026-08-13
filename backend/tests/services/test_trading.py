@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.db.connection import connect
+from app.db.queries import get_position, get_snapshots
 from app.db.seed import STARTING_CASH, apply_schema, seed_fresh
 from app.market import PriceCache
 from app.services import TradeError, execute_trade
@@ -37,6 +38,20 @@ def cache() -> PriceCache:
 def _rows(db: Path, sql: str, *args: object) -> list[sqlite3.Row]:
     with connect(db) as conn:
         return conn.execute(sql, args).fetchall()
+
+
+def _position(db: Path, ticker: str) -> sqlite3.Row | None:
+    with connect(db) as conn:
+        return get_position(conn, ticker)
+
+
+def _snapshots(db: Path) -> list[sqlite3.Row]:
+    with connect(db) as conn:
+        return get_snapshots(conn)
+
+
+def _cash(db: Path) -> float:
+    return _rows(db, "SELECT cash_balance FROM users_profile")[0]["cash_balance"]
 
 
 async def test_buy_fills_and_lands_everywhere(seeded_db: Path, cache: PriceCache) -> None:
@@ -92,3 +107,114 @@ async def test_rejected_buy_rolls_the_whole_unit_back(
     assert _rows(seeded_db, "SELECT ticker FROM positions") == []
     assert _rows(seeded_db, "SELECT cash_balance FROM users_profile")[0][0] == STARTING_CASH
     assert len(_rows(seeded_db, "SELECT id FROM portfolio_snapshots")) == snapshots_before
+
+
+class TestSell:
+    """Settlement and refusal on the sell side (PORT-03, PORT-05, PORT-09).
+
+    Every holding is established by executing a real buy first, so each sell
+    test also re-exercises the seam it depends on rather than a hand-written row.
+    """
+
+    async def test_partial_sell_credits_cash_and_leaves_avg_cost_alone(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """A partial sell adds the proceeds to cash and does not touch the cost basis."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 10.0)
+        cash_after_buy = _cash(seeded_db)
+        avg_cost_before = _position(seeded_db, UNWATCHED)["avg_cost"]
+
+        result = await execute_trade(seeded_db, cache, UNWATCHED, "sell", 4.0)
+
+        assert result.total_cost == FILL_PRICE * 4.0
+        assert result.cash_balance == pytest.approx(cash_after_buy + FILL_PRICE * 4.0)
+        assert _cash(seeded_db) == pytest.approx(cash_after_buy + FILL_PRICE * 4.0)
+
+        position = _position(seeded_db, UNWATCHED)
+        assert position["quantity"] == pytest.approx(6.0)
+        assert position["avg_cost"] == avg_cost_before
+
+    async def test_full_sell_deletes_the_position_row(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """Selling the entire holding removes the row rather than storing a zero."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 10.0)
+
+        await execute_trade(seeded_db, cache, UNWATCHED, "sell", 10.0)
+
+        assert _position(seeded_db, UNWATCHED) is None
+
+    async def test_full_sell_snapshot_values_the_portfolio_as_cash_alone(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """The snapshot the closing sell writes sees no position, because it is gone."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 10.0)
+
+        result = await execute_trade(seeded_db, cache, UNWATCHED, "sell", 10.0)
+
+        assert _snapshots(seeded_db)[0]["total_value"] == pytest.approx(result.cash_balance)
+
+    async def test_oversell_is_refused_and_the_database_is_unmoved(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """One 4dp step beyond the holding is refused with nothing written."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 10.0)
+        cash_before = _cash(seeded_db)
+        snapshots_before = len(_snapshots(seeded_db))
+        trades_before = len(_rows(seeded_db, "SELECT id FROM trades"))
+
+        with pytest.raises(TradeError, match="Insufficient shares"):
+            await execute_trade(seeded_db, cache, UNWATCHED, "sell", 10.0001)
+
+        assert _cash(seeded_db) == cash_before
+        assert _position(seeded_db, UNWATCHED)["quantity"] == pytest.approx(10.0)
+        assert len(_snapshots(seeded_db)) == snapshots_before
+        assert len(_rows(seeded_db, "SELECT id FROM trades")) == trades_before
+
+    async def test_oversell_message_names_both_share_figures(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """The refusal states shares needed and shares held, without trailing zeros."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 10.0)
+
+        with pytest.raises(TradeError, match=r"need 11 PYPL, have 10\b"):
+            await execute_trade(seeded_db, cache, UNWATCHED, "sell", 11.0)
+
+    async def test_selling_an_unheld_ticker_reports_zero_held(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """A ticker with no positions row counts as zero shares, not as a missing thing."""
+        with pytest.raises(TradeError, match=r"Insufficient shares.*have 0\b"):
+            await execute_trade(seeded_db, cache, UNWATCHED, "sell", 1.0)
+
+    async def test_selling_exactly_the_holding_succeeds(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """The boundary is a fill, not a refusal."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 2.5)
+
+        result = await execute_trade(seeded_db, cache, UNWATCHED, "sell", 2.5)
+
+        assert result.total_cost == FILL_PRICE * 2.5
+        assert _position(seeded_db, UNWATCHED) is None
+
+    async def test_selling_one_step_short_leaves_a_dust_row(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """One 4dp step less than held leaves a real 0.0001-share holding behind."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 10.0)
+
+        await execute_trade(seeded_db, cache, UNWATCHED, "sell", 9.9999)
+
+        assert _position(seeded_db, UNWATCHED)["quantity"] == pytest.approx(0.0001)
+
+    async def test_repeated_fractional_sells_delete_the_row_at_zero(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """Float residue from fractional sells is residue, not a holding."""
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", 0.6)
+
+        for quantity in (0.3, 0.1, 0.2):
+            await execute_trade(seeded_db, cache, UNWATCHED, "sell", quantity)
+
+        assert _position(seeded_db, UNWATCHED) is None
