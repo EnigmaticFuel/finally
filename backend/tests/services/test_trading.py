@@ -9,9 +9,10 @@ import pytest
 
 from app.db.connection import connect
 from app.db.queries import get_position, get_snapshots
-from app.db.seed import STARTING_CASH, apply_schema, seed_fresh
+from app.db.seed import DEFAULT_TICKERS, STARTING_CASH, apply_schema, seed_fresh
 from app.market import PriceCache
 from app.services import TradeError, execute_trade
+from app.services.trading import validate_quantity
 
 FILL_PRICE = 100.0
 QUANTITY = 3.0
@@ -218,3 +219,127 @@ class TestSell:
             await execute_trade(seeded_db, cache, UNWATCHED, "sell", quantity)
 
         assert _position(seeded_db, UNWATCHED) is None
+
+
+FINITENESS = "must be a finite number"
+POSITIVITY = "must be greater than zero"
+PRECISION = "at most 4 decimal places"
+
+
+class TestQuantityValidation:
+    """Every quantity failure mode, each proven by its own branch's wording (PORT-06).
+
+    TradeError subclasses ValueError, so asserting on the exception type alone
+    would discriminate nothing: three cases written that way would all pass with
+    two of the three branches dead. Every case matches on its own message.
+    """
+
+    def test_accepts_the_smallest_quantity_at_four_places(self) -> None:
+        """0.0001 is exactly representable at 4dp and comes back unchanged."""
+        assert validate_quantity(0.0001) == 0.0001
+
+    @pytest.mark.parametrize(
+        ("quantity", "wording"),
+        [
+            (float("inf"), FINITENESS),
+            (float("-inf"), FINITENESS),
+            (float("nan"), FINITENESS),
+            (0, POSITIVITY),
+            (-1, POSITIVITY),
+            (-0.5, POSITIVITY),
+            (0.00001, PRECISION),
+            (1e-9, PRECISION),
+        ],
+    )
+    def test_rejects_the_quantity_naming_its_own_branch(
+        self, quantity: float, wording: str
+    ) -> None:
+        """Each rejected quantity raises with the wording of the rule it broke."""
+        with pytest.raises(TradeError, match=wording):
+            validate_quantity(quantity)
+
+    def test_non_finite_quantity_reports_finiteness_not_precision(self) -> None:
+        """inf and nan share one wording, and it is not the precision wording.
+
+        round(float('inf'), 4) returns inf rather than raising, so a precision
+        check placed first would silently accept an infinite quantity and let it
+        reach the cash arithmetic. The check order is the entire mitigation, and
+        these two branches must not be provable by one another.
+        """
+        with pytest.raises(TradeError) as infinite:
+            validate_quantity(float("inf"))
+        with pytest.raises(TradeError) as not_a_number:
+            validate_quantity(float("nan"))
+        with pytest.raises(TradeError) as too_precise:
+            validate_quantity(1e-9)
+
+        assert FINITENESS in str(infinite.value)
+        assert FINITENESS in str(not_a_number.value)
+        assert PRECISION in str(too_precise.value)
+        assert FINITENESS not in str(too_precise.value)
+
+
+class TestInsufficientCash:
+    """Both sides of the cash boundary, and what a refusal leaves behind (PORT-04)."""
+
+    async def test_buy_for_exactly_the_whole_balance_fills(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """The boundary is a fill, not a rejection."""
+        result = await execute_trade(
+            seeded_db, cache, UNWATCHED, "buy", STARTING_CASH / FILL_PRICE
+        )
+
+        assert result.cash_balance == pytest.approx(0.0)
+
+    async def test_buy_for_one_cent_more_than_the_balance_is_refused(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """A cent past the balance raises, naming both figures at two decimal places."""
+        one_cent_over = (STARTING_CASH + 0.01) / FILL_PRICE
+
+        with pytest.raises(TradeError) as refusal:
+            await execute_trade(seeded_db, cache, UNWATCHED, "buy", one_cent_over)
+
+        message = str(refusal.value)
+        assert f"need ${STARTING_CASH + 0.01:.2f}" in message
+        assert f"have ${STARTING_CASH:.2f}" in message
+        assert f"{STARTING_CASH:,.2f}" not in message, (
+            "the client renders this verbatim, so the figures carry no thousands separator"
+        )
+
+    async def test_refused_buy_leaves_the_ticker_off_the_watchlist(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """add_watchlist_ticker ran first inside the transaction; the rollback undid it."""
+        assert UNWATCHED not in DEFAULT_TICKERS
+
+        with pytest.raises(TradeError, match="Insufficient cash"):
+            await execute_trade(seeded_db, cache, UNWATCHED, "buy", STARTING_CASH)
+
+        assert _rows(seeded_db, "SELECT ticker FROM watchlist WHERE ticker = ?", UNWATCHED) == []
+
+    async def test_every_buy_against_a_spent_balance_is_refused(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """A zero balance reads as zero at two decimal places, not as an absent figure.
+
+        The balance is spent down through a real trade rather than by editing the
+        profile row, because the point is that the guard reads live cash from
+        inside the transaction.
+        """
+        await execute_trade(seeded_db, cache, UNWATCHED, "buy", STARTING_CASH / FILL_PRICE)
+
+        with pytest.raises(TradeError) as refusal:
+            await execute_trade(seeded_db, cache, UNWATCHED, "buy", 1.0)
+
+        assert "have $0.00" in str(refusal.value)
+
+    async def test_a_portfolio_with_no_positions_refuses_cleanly(
+        self, seeded_db: Path, cache: PriceCache
+    ) -> None:
+        """An unaffordable first trade rejects on cash, not on an absent position row."""
+        assert _rows(seeded_db, "SELECT ticker FROM positions") == []
+
+        with pytest.raises(TradeError, match="Insufficient cash"):
+            await execute_trade(seeded_db, cache, UNWATCHED, "buy", STARTING_CASH)
