@@ -5,6 +5,29 @@ the only doors between the HTTP layer and the business rules. Phase 6 (CHAT-07,
 CHAT-08, CHAT-09) is planned against exactly these signatures and calls them
 directly, with no FastAPI object in hand.
 
+## Amendment — 2026-08-14 (G-01)
+
+`execute_trade` gains a `source: MarketDataSource` parameter. Decided by the
+developer at the phase 03 gap-closing gate, in response to G-01 / CR-02: the
+function had no way to register a traded symbol with the running feed, so
+"trading an unwatched ticker adds it to the watchlist" (PORT-07, ROADMAP SC2)
+was unreachable — `wait_for_price` always expired for a symbol the source had
+never been told about.
+
+The amendment makes the seam symmetric: both writers that can introduce a new
+symbol now hold the feed they must register it with, which is the same reason
+D-09 already gave `watchlist.add` a source. The alternatives were rejected —
+a narrow registrar callable adds an indirection with exactly one implementation,
+and registering in the callers duplicates the rule at every call site where a
+missed one silently reopens G-01.
+
+Amending is cheap now and not later: Phase 6 is planned against this shape but
+unbuilt, so the cost is this document plus the phase 03 call sites. The "one-way"
+warning below stands for any change made after Phase 6 lands.
+
+**Signature below is the amended one. The pre-amendment shape was**
+`execute_trade(db_path, cache, ticker, side, quantity)`.
+
 ## The signatures
 
 ```python
@@ -12,6 +35,7 @@ directly, with no FastAPI object in hand.
 async def execute_trade(
     db_path: Path,
     cache: PriceCache,
+    source: MarketDataSource,
     ticker: str,
     side: str,
     quantity: float,
@@ -35,8 +59,8 @@ async def remove(
 ## The rule these follow
 
 `db_path` first, collaborators next, payload last. No FastAPI object crosses the
-seam, so Phase 6 passes exactly what the router passes. `execute_trade` is D-03
-verbatim.
+seam, so Phase 6 passes exactly what the router passes. `execute_trade` was D-03
+verbatim until the G-01 amendment above added `source` to its collaborators.
 
 ## Why add and remove are asymmetric
 

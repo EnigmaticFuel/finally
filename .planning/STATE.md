@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: portfolio-watchlist-apis
-status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-08-13T14:53:26.949Z"
-last_activity: 2026-08-13
-last_activity_desc: Phase 03 execution started
+status: gaps_found
+stopped_at: Phase 03 gap-closing gate — 5/5 plans executed, review + verification found 3 gaps
+last_updated: "2026-08-14T00:00:00.000Z"
+last_activity: 2026-08-14
+last_activity_desc: Session resumed at Phase 03 gap-closing gate
 progress:
-  total_phases: 3
+  total_phases: 7
   completed_phases: 2
   total_plans: 14
-  completed_plans: 9
+  completed_plans: 14
 ---
 
 # Project State
@@ -27,12 +27,15 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 
 ## Current Position
 
-Phase: 03 (portfolio-watchlist-apis) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 03
-Last activity: 2026-08-13 — Phase 03 execution started
+Phase: 03 (portfolio-watchlist-apis) — GAP-CLOSING GATE
+Plan: 5 of 5 executed; phase not done
+Status: `gaps_found` — verification scored 69/72 must-haves, 3 gaps open (G-01, G-02, G-03)
+Last activity: 2026-08-14 — session resumed at the gap-closing gate
 
-Progress: [██░░░░░░░░] 29% (2/7 phases built, 9 plans complete)
+Progress: [███░░░░░░░] 29% (2/7 phases built, 14 plans complete)
+
+**Do not read the green 351-test suite as proof phase 03 is done.** The PORT-07 test
+passes only because its fixture performs the registration step production lacks.
 
 ## Performance Metrics
 
@@ -72,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 1]: `BEGIN IMMEDIATE` on every write; the concurrency test asserts the final stored value, not just absence of errors.
 - [Phase 1]: Two prohibitions accepted without automated guards (trades append-only, db rewrite gate) — R-03/R-04 in `01-SECURITY.md`.
 - [Phase 2]: A-05 closed 2026-08-12 — the `.sh` pair ran on Ubuntu WSL2 (ext4) once Docker Desktop's WSL integration was enabled. D-06's root-user rationale is now proven, not reasoned: container `uid=0` writes through a bind mount whose files are uid 1000, and a root-written file lands on ext4 as uid 0 beside them — ownership `drvfs` cannot fake.
+- [Phase 3, 2026-08-14]: **Seam contract amended to close G-01** — `execute_trade` gains `source: MarketDataSource`. Symmetric with `watchlist.add` (D-09): both writers that can introduce a new symbol now hold the feed they must register it with. Rejected: a narrow registrar callable (one implementation, pure indirection) and registering in the callers (duplicates the rule; a missed call site silently reopens G-01). Cheap now because Phase 6 is planned against the shape but unbuilt. Recorded in `03-SEAM-CONTRACT.md`.
+- [Phase 3, 2026-08-14]: Gap-closing scope is **gaps plus all review findings** — G-01/02/03, WR-01..04, IN-01..05, then re-verify. Phase 4's frontend should build on a settled API rather than one with known cleanup pending.
 - [Phase 2]: The Dockerfile *build* still has not run on Linux, only the run path. `start_mac.sh` builds only when the image is missing or `--build` is passed, and it reused the Windows-built image. Phase 7 replaces these placeholder build stages and is the natural place to cover it.
 
 ### Pending Todos
@@ -95,6 +100,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T16:19:44.685Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-portfolio-watchlist-apis/03-CONTEXT.md
+Last session: 2026-08-14
+Stopped at: Seam-contract decision made; ready to plan the phase 03 gaps
+Resume file: .planning/phases/03-portfolio-watchlist-apis/.continue-here.md
+Handoff: .planning/HANDOFF.json (retained until the gaps are planned)
