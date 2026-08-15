@@ -156,9 +156,19 @@ def _apply_trade(
     the row back with everything else - a rejected trade must leave no watchlist
     row, no cash change and no snapshot.
 
-    Every value handed to a query function is raw. Rounding happens once at the
-    queries.py write boundary, and round_money appears here only inside the
-    sufficiency comparison, never on a value being stored.
+    The cash balance is computed once, at storage precision, and the same float
+    travels to update_cash_balance and into the returned dict. It is the one
+    value that is both stored and reported, so a raw figure in the response would
+    disagree with the row a following GET /api/portfolio reads. round_money is
+    idempotent, so the write boundary's own rounding is unaffected. Every other
+    value handed to a query function is still raw, and total_cost in particular
+    stays the unrounded product because the client recomputes it.
+
+    The sufficiency comparison runs before any rounding. Rounding both sides
+    first let a cost exceeding cash by under half a cent compare equal and fill,
+    which then stored a negative balance; comparing raw cost against raw cash
+    makes the difference provably non-negative, so no stored balance can be
+    negative and negative zero is unreachable.
 
     A sell leaves avg_cost alone: selling part of a holding does not change the
     cost basis per share, and a sell to zero deletes the row so no cost basis
@@ -177,9 +187,9 @@ def _apply_trade(
         held = position["quantity"] if position else 0.0
 
         if side == "buy":
-            if round_money(cost) > round_money(cash):
+            if cost > cash:
                 raise TradeError(f"Insufficient cash: need ${cost:.2f}, have ${cash:.2f}")
-            new_cash = cash - cost
+            new_cash = round_money(cash - cost)
             held_avg = position["avg_cost"] if position else 0.0
             new_quantity = held + quantity
             upsert_position(
@@ -192,7 +202,7 @@ def _apply_trade(
             remaining = held - quantity
             if remaining < 0 and not is_zero(remaining):
                 raise TradeError(f"Insufficient shares: need {quantity:g} {ticker}, have {held:g}")
-            new_cash = cash + cost
+            new_cash = round_money(cash + cost)
             if is_zero(remaining):
                 delete_position(conn, ticker)
             else:
