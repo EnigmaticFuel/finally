@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -23,6 +24,23 @@ from app.services.watchlist import startup_tickers
 # therefore breaks the whole suite at collection depending on where the
 # process was launched from, not just the one test that fetches the page.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
+logger = logging.getLogger(__name__)
+
+
+def _log_if_failed(task: asyncio.Task[None]) -> None:
+    """Report a snapshot task that died, at the moment it dies.
+
+    A recorder that fails silently renders as a flat P&L chart, which reads as an
+    idle portfolio rather than a broken writer. Reporting here rather than at
+    shutdown is what lets an operator act while the app is still up.
+
+    The cancelled() test comes first and short-circuits, because exception()
+    re-raises on a cancelled task. That ordering is what keeps every ordinary
+    shutdown silent: a cancelled task is not a failed one.
+    """
+    if not task.cancelled() and task.exception() is not None:
+        logger.error("Snapshot loop stopped: %s", task.exception())
 
 
 def create_app() -> FastAPI:
@@ -45,22 +63,28 @@ def create_app() -> FastAPI:
         user added in an earlier run gets a feed, and there is only one list to
         disagree with itself.
 
-        This lifespan owns both background tasks and cancels both here, so
-        nothing outlives the app. The snapshot task stops first because it reads
-        prices from the cache the source writes: cancelling it before the source
+        This lifespan owns both background tasks and reclaims both from a
+        finally block, so nothing outlives the app however the snapshot task
+        ended - including a recorder that died of a database error rather than
+        of cancellation, which used to re-raise here and skip the stop below.
+        The snapshot task is still reclaimed before the source is stopped,
+        because it reads prices from the cache the source writes: that order
         leaves no window where a live recorder reads a cache whose producer has
-        already gone. The path comes off this app's own state, which is what
-        lets a test fixture point the recorder at a throwaway database.
+        already gone. A recorder that fails is meant to die, per PORT-12, and
+        _log_if_failed reports that death at error level when it happens; the
+        finally is here to stop the corpse blocking the rest of teardown, not to
+        keep the loop alive. The path comes off this app's own state, which is
+        what lets a test fixture point the recorder at a throwaway database.
         """
         await source.start(await startup_tickers(app.state.db_path))
         task = asyncio.create_task(snapshot_loop(app.state.db_path, cache), name="snapshot-loop")
-        yield
-        task.cancel()
+        task.add_done_callback(_log_if_failed)
         try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        await source.stop()
+            yield
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            await source.stop()
 
     app = FastAPI(title="FinAlly", lifespan=lifespan)
     register_exception_handlers(app)
