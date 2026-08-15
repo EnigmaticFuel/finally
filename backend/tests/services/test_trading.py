@@ -9,12 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from app.db.connection import connect
+from app.db.connection import connect, writing
 from app.db.queries import get_position, get_snapshots
 from app.db.seed import DEFAULT_TICKERS, STARTING_CASH, apply_schema, seed_fresh
 from app.market import PriceCache
 from app.services import TradeError, execute_trade
-from app.services.trading import validate_quantity
+from app.services.trading import _format_shares, validate_quantity
 from tests.services.conftest import RecordingSource
 
 FILL_PRICE = 100.0
@@ -29,6 +29,26 @@ FILL_PRICE times any whole quantity lands exactly on a stored cent, so the gap
 between the raw balance and the stored one is invisible at that price. Every
 storage-precision assertion in this module uses this one instead.
 """
+
+
+class MovingCache(PriceCache):
+    """A cache that ticks once, between the two reads execute_trade makes.
+
+    A subclass rather than a monkeypatch because the divergence under test is
+    only observable when the second read differs from the first. execute_trade
+    reads the cache twice by design - wait_for_price for the fill, get_all for
+    the snapshot's price map - and no static fixture can make those two disagree.
+    """
+
+    def __init__(self, ticker: str, moved_price: float) -> None:
+        super().__init__()
+        self._moving_ticker = ticker
+        self._moved_price = moved_price
+
+    def get_all(self) -> dict[str, object]:
+        """Move the price, then answer. get_price reads get(), so the fill is unaffected."""
+        self.update(self._moving_ticker, self._moved_price)
+        return super().get_all()
 
 
 @pytest.fixture
@@ -172,6 +192,29 @@ async def test_rejected_buy_rolls_the_whole_unit_back(
     assert len(_rows(seeded_db, "SELECT id FROM portfolio_snapshots")) == snapshots_before
 
 
+async def test_the_snapshot_values_the_traded_ticker_at_the_fill_price(
+    seeded_db: Path, recording_source: RecordingSource
+) -> None:
+    """A cache tick between the fill and the snapshot does not move the snapshot.
+
+    portfolio_snapshots is append-only and the P&L chart trusts it, so a row
+    valued at a price no trade ever executed at is not correctable later. The
+    fill is overlaid onto the price map rather than the two reads being made
+    atomic: the cache is rewritten every 500ms by design.
+    """
+    price_cache = MovingCache(UNWATCHED, moved_price=200.00)
+    price_cache.update(UNWATCHED, AWKWARD_PRICE)
+    before = len(_snapshots(seeded_db))
+
+    result = await execute_trade(seeded_db, price_cache, recording_source, UNWATCHED, "buy", 2.0)
+
+    assert result.fill_price == AWKWARD_PRICE
+    assert len(_snapshots(seeded_db)) == before + 1
+    assert _snapshots(seeded_db)[0]["total_value"] == pytest.approx(
+        result.cash_balance + 2.0 * result.fill_price
+    )
+
+
 class TestSell:
     """Settlement and refusal on the sell side (PORT-03, PORT-05, PORT-09).
 
@@ -249,6 +292,35 @@ class TestSell:
         """A ticker with no positions row counts as zero shares, not as a missing thing."""
         with pytest.raises(TradeError, match=r"Insufficient shares.*have 0\b"):
             await execute_trade(seeded_db, priced_cache, recording_source, UNWATCHED, "sell", 1.0)
+
+    async def test_a_dust_holding_is_reported_without_exponent_notation(
+        self, seeded_db: Path, priced_cache: PriceCache, recording_source: RecordingSource
+    ) -> None:
+        """A holding below 4dp reads as 0 shares, never as 1e-05.
+
+        The row is hand-written deliberately. upsert_position rounds through
+        round_quantity at 4dp, so a 1e-05 holding is unreachable through the
+        normal write path - which is exactly why the g-format's switch to
+        exponent notation below 1e-4 survived every existing test. The message is
+        shown to the user verbatim, and 1e-05 shares is not a figure anyone can
+        act on.
+        """
+        with connect(seeded_db) as conn:
+            with writing(conn):
+                conn.execute(
+                    "INSERT INTO positions"
+                    " (id, user_id, ticker, quantity, avg_cost, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?)",
+                    ("dust-row", "default", UNWATCHED, 1e-05, 100.0, "2026-08-15T00:00:00Z"),
+                )
+
+        with pytest.raises(TradeError) as refusal:
+            await execute_trade(seeded_db, priced_cache, recording_source, UNWATCHED, "sell", 1.0)
+
+        message = str(refusal.value)
+        assert "e-" not in message
+        assert "E-" not in message
+        assert "have 0" in message
 
     async def test_selling_exactly_the_holding_succeeds(
         self, seeded_db: Path, priced_cache: PriceCache, recording_source: RecordingSource
@@ -339,6 +411,31 @@ class TestQuantityValidation:
         assert FINITENESS in str(not_a_number.value)
         assert PRECISION in str(too_precise.value)
         assert FINITENESS not in str(too_precise.value)
+
+
+class TestFormatShares:
+    """Rendering a share count for a message the user reads verbatim (PORT-05)."""
+
+    @pytest.mark.parametrize(
+        ("value", "rendered"),
+        [
+            (11.0, "11"),
+            (10.0, "10"),
+            (2.5, "2.5"),
+            (0.0001, "0.0001"),
+            (0.0, "0"),
+            (1e-05, "0"),
+        ],
+    )
+    def test_renders_at_stored_precision_without_trailing_zeros(
+        self, value: float, rendered: str
+    ) -> None:
+        """Four places is the stored quantity precision, with the padding stripped."""
+        assert _format_shares(value) == rendered
+
+    def test_a_dust_value_never_renders_in_exponent_form(self) -> None:
+        """The g presentation type switches to exponents below 1e-4; this must not."""
+        assert "e" not in _format_shares(1e-05)
 
 
 class TestInsufficientCash:
