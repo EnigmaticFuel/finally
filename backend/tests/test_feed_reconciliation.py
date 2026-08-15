@@ -70,3 +70,51 @@ def test_trading_an_unregistered_ticker_fills_and_joins_the_watchlist(db_path: P
         portfolio = client.get("/api/portfolio").json()
         position = next(row for row in portfolio["positions"] if row["ticker"] == UNWATCHED)
         assert position["current_price"] is not None
+
+
+def test_a_user_added_ticker_still_prices_after_a_restart(db_path: Path) -> None:
+    """A ticker added in one run values, sells and removes in the next.
+
+    The symbol is introduced through POST /api/watchlist rather than by trading
+    it directly, deliberately: that route registered its ticker with the feed
+    before this plan, so this test discriminates the boot-from-watchlist gap
+    alone and cannot pass or fail for the registration-on-trade reason.
+
+    Before the lifespan read the persisted watchlist, the second app tracked only
+    the ten defaults and the holding was stranded: GET /api/watchlist reported
+    the symbol with a null price, GET /api/portfolio reported it with a null
+    current_price and market_value and left it out of a total_value of 9662.91,
+    the sell returned 400 "No price available for PYPL yet, please try again",
+    and the delete returned 409 - refusing to strand the very position that could
+    not be sold.
+    """
+    assert UNWATCHED not in DEFAULT_TICKERS
+
+    first = _app_for(db_path)
+    with TestClient(first) as client:
+        assert client.post("/api/watchlist", json={"ticker": UNWATCHED}).status_code == 200
+        bought = client.post(
+            "/api/portfolio/trade",
+            json={"ticker": UNWATCHED, "side": "buy", "quantity": 1},
+        )
+        assert bought.status_code == 200, bought.text
+
+    second = _app_for(db_path)
+    with TestClient(second) as client:
+        watched = client.get("/api/watchlist").json()["tickers"]
+        entry = next(row for row in watched if row["ticker"] == UNWATCHED)
+        assert entry["price"] is not None
+
+        portfolio = client.get("/api/portfolio").json()
+        position = next(row for row in portfolio["positions"] if row["ticker"] == UNWATCHED)
+        assert position["current_price"] is not None
+        assert position["market_value"] is not None
+        assert portfolio["total_value"] > portfolio["cash_balance"]
+
+        sold = client.post(
+            "/api/portfolio/trade",
+            json={"ticker": UNWATCHED, "side": "sell", "quantity": 1},
+        )
+        assert sold.status_code == 200, sold.text
+
+        assert client.delete(f"/api/watchlist/{UNWATCHED}").status_code == 204

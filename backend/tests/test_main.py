@@ -101,14 +101,17 @@ def test_create_app_builds_cache_before_routers(app: FastAPI) -> None:
 async def test_lifespan_starts_and_stops_source(app: FastAPI) -> None:
     """Lifespan owns both background tasks: started on enter, gone on exit.
 
-    The expected tickers come from app.db.seed, the same constant the database
-    seeds the watchlist with, so this also pins that the two cannot diverge.
+    The expected tickers are sorted rather than in seed order, and that is the
+    point: the feed is started from the persisted watchlist rows, and
+    get_watchlist orders ascending by ticker. Seed order is no longer what the
+    source holds, which is itself the proof that the streamed set and the
+    watchlist the user sees come from one place and cannot diverge.
     """
     source = app.state.market_source
     assert source.get_tickers() == []
 
     async with app.router.lifespan_context(app):
-        assert source.get_tickers() == list(DEFAULT_TICKERS)
+        assert source.get_tickers() == sorted(DEFAULT_TICKERS)
         assert "simulator-loop" in _running_task_names()
         assert "snapshot-loop" in _running_task_names()
 
@@ -122,10 +125,11 @@ async def test_lifespan_records_no_snapshot_on_a_short_life(
 ) -> None:
     """An app that lives for milliseconds writes nothing: the loop sleeps first.
 
-    ensure_initialized is required setup rather than incidental. The lifespan
-    starts and stops the market source and seeds nothing, and seeding otherwise
-    happens inside run_db, which the sleeping snapshot task never reaches - so
-    without this call there would be no database to count rows in.
+    ensure_initialized is belt-and-braces rather than required setup: the
+    lifespan now reads the watchlist through startup_tickers, and run_db seeds on
+    first touch, so the database exists either way. The assertion of exactly one
+    snapshot row holds under both, which is the thing being pinned - the sleeping
+    snapshot task adds nothing of its own.
     """
     ensure_initialized(db_path)
 
