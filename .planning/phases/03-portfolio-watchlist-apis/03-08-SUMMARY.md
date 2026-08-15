@@ -270,6 +270,11 @@ None — no external service configuration required.
 - **For phase re-verification after wave 2 merges:** write the route-level pydantic-leak assertion against the real `api/portfolio.py` handlers (see the recorded residual above), and run the full suite once 03-07 and 03-09 are in the same tree.
 - The known `tests/market/test_simulator_source.py::test_custom_update_interval` Windows timer flake was never collected by this plan's scoped gates and remains untouched.
 
+## Self-Check: PASSED
+
+All claimed files exist on disk and all seven commits exist in this worktree's history:
+`82d3771`, `09274eb`, `a3d7c9c`, `43ed7ec`, `6be67ce`, `c0ba81f`, `c609140`.
+
 ---
 *Phase: 03-portfolio-watchlist-apis*
 *Completed: 2026-08-15*
