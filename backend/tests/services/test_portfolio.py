@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from app.db.connection import connect
+from app.db.connection import connect, writing
 from app.db.queries import (
     add_watchlist_ticker,
     get_positions,
@@ -306,6 +306,33 @@ class TestResetPortfolio:
 
         assert second == first
         assert _count(loaded_db, SNAPSHOT_COUNT) == before + 1
+
+    async def test_the_body_reports_what_the_transaction_wrote(
+        self, loaded_db: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A wrong reset is visible in the body rather than hidden by it.
+
+        The substitute is deliberately not a reset: it moves the cash to a value
+        that is not the starting cash and leaves both positions in place. A body
+        that restated STARTING_CASH and an empty list would report none of that,
+        which is WR-04's failure mode exactly. This is the only test in the suite
+        that goes red if the read-back is reverted to a constant.
+
+        An empty PriceCache is correct here: the two surviving positions report
+        null valuations, which is the existing null rule and is not what this
+        asserts.
+        """
+
+        def partial_reset(conn: sqlite3.Connection) -> None:
+            with writing(conn):
+                update_cash_balance(conn, SPENT_CASH)
+
+        monkeypatch.setattr("app.services.portfolio._apply_reset", partial_reset)
+
+        payload = await reset_portfolio(loaded_db, PriceCache())
+
+        assert payload["cash_balance"] == SPENT_CASH
+        assert [position["ticker"] for position in payload["positions"]] == ["AAPL", "TSLA"]
 
     async def test_a_failure_part_way_through_commits_nothing(
         self, loaded_db: Path, monkeypatch: pytest.MonkeyPatch
