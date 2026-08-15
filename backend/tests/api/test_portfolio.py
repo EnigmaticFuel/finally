@@ -204,6 +204,25 @@ class TestResetPortfolioRoute:
         assert payload["cash_balance"] == STARTING_CASH
         assert payload["positions"] == []
 
+    def test_a_cross_origin_form_post_is_refused(self, app: FastAPI, db_path: Path) -> None:
+        """A form-encoded POST cannot drive the reset, so no cross-origin page can.
+
+        A cross-origin HTML form POST is a CORS simple request: no preflight
+        fires, the browser sends it, and the side effect lands. Requiring a JSON
+        body is what makes the request non-simple. The untouched cash and
+        position are asserted alongside the status, because a refusal that still
+        wiped the account would satisfy a status-only assertion.
+        """
+        client = TestClient(app)
+        self._spend(client, db_path)
+
+        response = client.post("/api/portfolio/reset", data={"confirm": "true"})
+
+        assert response.status_code == 422
+        payload = client.get("/api/portfolio").json()
+        assert payload["cash_balance"] == 1234.56
+        assert len(payload["positions"]) == 1
+
     def test_a_get_does_not_reset_anything(self, app: FastAPI, db_path: Path) -> None:
         """The destructive path is POST only, so navigation cannot trigger it.
 
