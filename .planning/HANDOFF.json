@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-08-15T19:25:39.310Z",
+  "phase": "4",
+  "phase_name": "Frontend Shell",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "pause_kind": "phase_boundary",
+  "completed_tasks": [
+    {"id": 1, "name": "Phase 01 Foundation & Spine - 5/5 plans", "status": "done", "commit": "see 01-VERIFICATION.md"},
+    {"id": 2, "name": "Phase 02 Walking Skeleton & Container - 4/4 plans", "status": "done", "commit": "see 02-VERIFICATION.md"},
+    {"id": 3, "name": "Phase 03 Portfolio & Watchlist APIs - 9/9 plans, UAT 4/4, threats_open 0", "status": "done", "commit": "9091483"}
+  ],
+  "remaining_tasks": [
+    {"id": 4, "name": "Phase 4 Frontend Shell - discuss, ui-phase, plan, execute", "status": "not_started"},
+    {"id": 5, "name": "Phase 5 Charts & Visualization", "status": "not_started"},
+    {"id": 6, "name": "Phase 6 AI Chat Copilot", "status": "not_started"},
+    {"id": 7, "name": "Phase 7 Production Container & Full Verification", "status": "not_started"}
+  ],
+  "blockers": [
+    {
+      "description": "Live structured-output behaviour through OpenRouter to Cerebras is unverified. Spike it in Phase 6 before writing the chat router.",
+      "type": "technical",
+      "workaround": "Not blocking Phase 4."
+    },
+    {
+      "description": "Project lives inside OneDrive and db/finally.db is tracked in git. Accepted risk, not a task. If 'database is locked' appears this is the cause.",
+      "type": "external",
+      "workaround": "Diagnose only; do not plan a relocation or an untracking. Phase 1 concurrency suite passes 6-way contention against a real file DB."
+    }
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {
+      "decision": "Frontend must render API error bodies (`{\"detail\": ...}`) as text, never as markup.",
+      "rationale": "Phase 3 accepted risk AR-03-03: detail carries a service-authored message that echoes the user's submitted string back. See 03-SECURITY.md.",
+      "phase": "4"
+    },
+    {
+      "decision": "Flash by tick, colour and change column by change-from-open, labeled 'Chg from Open' not 'Change %'.",
+      "rationale": "[CORR] correction accepted at init; ROADMAP Phase 4 success criterion 2.",
+      "phase": "4"
+    },
+    {
+      "decision": "Exactly one EventSource connection, surviving a React StrictMode remount without leaking a second.",
+      "rationale": "ROADMAP Phase 4 success criterion 5 - no polling, no second live channel.",
+      "phase": "4"
+    },
+    {
+      "decision": "Phase 4 delivers watchlist rows and selection state; the sparkline and main chart that consume them are Phase 5 (CHART-01/CHART-02).",
+      "rationale": "Seam with Phase 5 recorded in ROADMAP.md:156.",
+      "phase": "4"
+    }
+  ],
+  "uncommitted_files": [".claude/settings.local.json"],
+  "next_action": "Run `/gsd-discuss-phase 4` to gather context for the Frontend Shell, then `/gsd-ui-phase 4` (ROADMAP marks 'UI hint: yes') before planning.",
+  "context_notes": "This is a clean phase-boundary pause, not a mid-task interruption. No Phase 4 work has started - no .planning/phases/04-* directory exists yet. Phase 3 closed fully on 2026-08-15 (UAT 4/4, verification passed, security threats_open 0, all 21 requirement IDs marked complete) and commit d3bfab4 deliberately removed the stale Phase 3 handoff. The working tree is clean apart from .claude/settings.local.json. Nothing is half-finished and nothing needs recovering."
+}
