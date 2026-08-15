@@ -17,7 +17,7 @@ from app.db.queries import upsert_position
 from app.db.seed import DEFAULT_TICKERS
 from app.market import PriceCache, create_market_data_source
 from app.market.cache import HISTORY_INTERVAL_SECONDS, HISTORY_POINTS
-from app.services.errors import Conflict, NotFound
+from app.services.errors import Conflict, NotFound, TradeError
 from app.services.watchlist import add, quote, read_watchlist, remove, startup_tickers
 
 from .conftest import RecordingSource
@@ -158,8 +158,13 @@ class TestAdd:
     async def test_an_invalid_symbol_never_reaches_the_database_or_the_source(
         self, db_path: Path, recording_source: RecordingSource
     ) -> None:
-        """normalize_ticker runs first, so a malformed symbol does no I/O."""
-        with pytest.raises(ValueError, match="Invalid ticker symbol"):
+        """normalize_ticker runs first, so a malformed symbol does no I/O.
+
+        The class is asserted as TradeError rather than ValueError deliberately.
+        TradeError subclasses ValueError, so the looser assertion passed both
+        before and after the seam translation and discriminated nothing.
+        """
+        with pytest.raises(TradeError, match="Invalid ticker symbol"):
             await add(db_path, recording_source, "toolong")
 
         assert recording_source.added == []
@@ -240,8 +245,13 @@ class TestRemove:
         assert sum(isinstance(result, NotFound) for result in results) == 1
 
     async def test_an_invalid_symbol_is_rejected_before_any_lookup(self, db_path: Path) -> None:
-        """A malformed symbol cannot name a row, so it is a 400 not a 404."""
-        with pytest.raises(ValueError, match="Invalid ticker symbol"):
+        """A malformed symbol cannot name a row, so it is a 400 not a 404.
+
+        Asserted as TradeError for the same reason as its counterpart on add:
+        TradeError subclasses ValueError, so the looser assertion could not tell
+        whether the translation at the seam had happened at all.
+        """
+        with pytest.raises(TradeError, match="Invalid ticker symbol"):
             await remove(db_path, "toolong")
 
 

@@ -32,7 +32,7 @@ from app.db.queries import (
 from app.db.seed import DEFAULT_TICKERS
 from app.market import MarketDataSource, PriceCache, normalize_ticker
 
-from .errors import Conflict, NotFound
+from .errors import Conflict, NotFound, TradeError
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +134,16 @@ async def add(db_path: Path, source: MarketDataSource, ticker: str) -> Watchlist
     An already-watched ticker is a success, not an error: add_watchlist_ticker
     no-ops on conflict, and re-registering with the source is a harmless no-op
     that repairs a ticker whose earlier registration failed.
+
+    normalize_ticker is wrapped because it lives in the frozen app/market/ module
+    and raises a plain ValueError. Translating that one named call into the
+    taxonomy at the seam is what lets a ValueError reaching the router mean a
+    defect rather than a bad symbol.
     """
-    symbol = normalize_ticker(ticker)
+    try:
+        symbol = normalize_ticker(ticker)
+    except ValueError as exc:
+        raise TradeError(str(exc)) from exc
     added = await run_db(db_path, _add_row, symbol)
     await source.add_ticker(symbol)
     logger.info("Watchlist: added ticker %s", symbol)
@@ -159,8 +167,14 @@ async def remove(db_path: Path, ticker: str) -> None:
     is harmless: startup_tickers starts the source from the watchlist rows on
     every boot, so the removed ticker is gone from the next run's feed, and the
     client renders from this API rather than from the stream's key set.
+
+    normalize_ticker is wrapped for the same reason it is in add: one frozen call
+    raising a plain ValueError, translated into the taxonomy at the seam.
     """
-    symbol = normalize_ticker(ticker)
+    try:
+        symbol = normalize_ticker(ticker)
+    except ValueError as exc:
+        raise TradeError(str(exc)) from exc
     await run_db(db_path, _remove_checked, symbol)
     logger.info("Watchlist: removed ticker %s", symbol)
 

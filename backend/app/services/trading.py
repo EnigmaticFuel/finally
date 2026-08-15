@@ -15,7 +15,10 @@ The prices used for the trade-time snapshot are captured before the transaction
 opens and passed in as a plain dict, so _apply_trade never touches PriceCache.
 That keeps the thread function pure, keeps the transaction off state that moves
 every 500ms, and makes the snapshot value agree with the fill the user was just
-quoted.
+quoted. That agreement comes from overlaying fill_price onto the captured map,
+not from the two reads happening to coincide: the price wait and the map capture
+are separate reads of a cache rewritten every 500ms, so without the overlay the
+snapshot would value the traded ticker at a price the trade never executed at.
 """
 
 from __future__ import annotations
@@ -85,6 +88,20 @@ def validate_quantity(quantity: float) -> float:
     return quantity
 
 
+def _format_shares(value: float) -> str:
+    """Render a share count for a message shown to the user verbatim.
+
+    Fixed decimal at the stored 4dp precision, with trailing zeros and any
+    trailing point stripped: 11.0 reads as 11, 2.5 as 2.5, 0.0001 as 0.0001.
+
+    The g presentation type switches to exponent form below 1e-4, so a dust
+    holding would tell the user they hold 1e-05 shares - a figure nobody can act
+    on. Four places is money.py's QUANTITY_PLACES, so a value that renders as 0
+    here is a holding smaller than anything the write boundary can store.
+    """
+    return f"{value:.4f}".rstrip("0").rstrip(".") or "0"
+
+
 async def execute_trade(
     db_path: Path,
     cache: PriceCache,
@@ -103,16 +120,32 @@ async def execute_trade(
     hold the feed they must register it with. Registration precedes the price
     wait because an unregistered symbol has no producer, so the wait would always
     expire and trading an unwatched ticker would be unreachable.
+
+    Two calls are wrapped, and both wrap exactly one named call each. This is
+    translation at a boundary, not defensive programming: normalize_ticker and
+    wait_for_price live in the frozen app/market/ module and raise the plain
+    ValueError Phase 1's style used, each with a documented user-facing message.
+    Converting them into the taxonomy here is what lets a ValueError reaching the
+    router mean a defect rather than a user error. Nothing else is wrapped -
+    validate_quantity already raises TradeError, and a wider block would report a
+    genuine fault inside the transaction as a 400.
     """
-    ticker = normalize_ticker(ticker)
+    try:
+        ticker = normalize_ticker(ticker)
+    except ValueError as exc:
+        raise TradeError(str(exc)) from exc
     if side not in VALID_SIDES:
         raise TradeError(f"Side must be 'buy' or 'sell', got {side!r}")
     validate_quantity(quantity)
 
     await source.add_ticker(ticker)
 
-    fill_price = await wait_for_price(cache, ticker, timeout=PRICE_WAIT_SECONDS)
+    try:
+        fill_price = await wait_for_price(cache, ticker, timeout=PRICE_WAIT_SECONDS)
+    except ValueError as exc:
+        raise TradeError(str(exc)) from exc
     prices = {symbol: update.price for symbol, update in cache.get_all().items()}
+    prices[ticker] = fill_price
 
     filled = await run_db(db_path, _apply_trade, ticker, side, quantity, fill_price, prices)
 
@@ -141,9 +174,19 @@ def _apply_trade(
     the row back with everything else - a rejected trade must leave no watchlist
     row, no cash change and no snapshot.
 
-    Every value handed to a query function is raw. Rounding happens once at the
-    queries.py write boundary, and round_money appears here only inside the
-    sufficiency comparison, never on a value being stored.
+    The cash balance is computed once, at storage precision, and the same float
+    travels to update_cash_balance and into the returned dict. It is the one
+    value that is both stored and reported, so a raw figure in the response would
+    disagree with the row a following GET /api/portfolio reads. round_money is
+    idempotent, so the write boundary's own rounding is unaffected. Every other
+    value handed to a query function is still raw, and total_cost in particular
+    stays the unrounded product because the client recomputes it.
+
+    The sufficiency comparison runs before any rounding. Rounding both sides
+    first let a cost exceeding cash by under half a cent compare equal and fill,
+    which then stored a negative balance; comparing raw cost against raw cash
+    makes the difference provably non-negative, so no stored balance can be
+    negative and negative zero is unreachable.
 
     A sell leaves avg_cost alone: selling part of a holding does not change the
     cost basis per share, and a sell to zero deletes the row so no cost basis
@@ -162,9 +205,9 @@ def _apply_trade(
         held = position["quantity"] if position else 0.0
 
         if side == "buy":
-            if round_money(cost) > round_money(cash):
+            if cost > cash:
                 raise TradeError(f"Insufficient cash: need ${cost:.2f}, have ${cash:.2f}")
-            new_cash = cash - cost
+            new_cash = round_money(cash - cost)
             held_avg = position["avg_cost"] if position else 0.0
             new_quantity = held + quantity
             upsert_position(
@@ -176,8 +219,11 @@ def _apply_trade(
         else:
             remaining = held - quantity
             if remaining < 0 and not is_zero(remaining):
-                raise TradeError(f"Insufficient shares: need {quantity:g} {ticker}, have {held:g}")
-            new_cash = cash + cost
+                raise TradeError(
+                    f"Insufficient shares: need {_format_shares(quantity)} {ticker},"
+                    f" have {_format_shares(held)}"
+                )
+            new_cash = round_money(cash + cost)
             if is_zero(remaining):
                 delete_position(conn, ticker)
             else:

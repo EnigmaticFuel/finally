@@ -5,10 +5,12 @@ the translation and a new service raising Conflict is correctly a 409 the day it
 is written. The alternative - try/except in each route - silently 500s the first
 time an author forgets it.
 
-The bare-ValueError row is load-bearing, not belt-and-braces. normalize_ticker
-and wait_for_price both raise plain ValueError, and without that row an invalid
-symbol and a price timeout would each surface as a 500 carrying a traceback body
-instead of the readable 400 the user is promised.
+There is no row for the built-in ValueError. normalize_ticker and wait_for_price
+raise plain ValueError, and both are translated into the taxonomy
+at the service seam, so an unexpected ValueError - a pydantic validation failure
+inside a handler, or any other defect - falls through to Starlette's 500 with a
+traceback in the log rather than being reported to the user as a bad request
+carrying the exception's own text.
 
 Starlette resolves a handler by walking the exception's MRO and taking the first
 registered class, so the three subclasses stay correctly mapped despite all of
@@ -24,7 +26,7 @@ from app.services.errors import Conflict, NotFound, TradeError
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Register the four handlers that turn raised services errors into responses."""
+    """Register the three handlers that turn raised services errors into responses."""
 
     def _detail(exc: Exception, status_code: int) -> JSONResponse:
         """PLAN.md section 8's envelope: the service-authored message, verbatim.
@@ -37,4 +39,3 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Conflict, lambda request, exc: _detail(exc, 409))
     app.add_exception_handler(NotFound, lambda request, exc: _detail(exc, 404))
     app.add_exception_handler(TradeError, lambda request, exc: _detail(exc, 400))
-    app.add_exception_handler(ValueError, lambda request, exc: _detail(exc, 400))
