@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import sqlite3
 from pathlib import Path
 
@@ -20,6 +21,14 @@ FILL_PRICE = 100.0
 QUANTITY = 3.0
 UNWATCHED = "PYPL"
 PRICELESS = "ZZZ"
+
+AWKWARD_PRICE = 190.52
+"""A price whose product with a fractional quantity is not already at 2dp.
+
+FILL_PRICE times any whole quantity lands exactly on a stored cent, so the gap
+between the raw balance and the stored one is invisible at that price. Every
+storage-precision assertion in this module uses this one instead.
+"""
 
 
 @pytest.fixture
@@ -104,6 +113,43 @@ async def test_stored_cash_matches_the_reported_balance(
 
     stored = _rows(seeded_db, "SELECT cash_balance FROM users_profile")[0]["cash_balance"]
     assert stored == pytest.approx(result.cash_balance)
+
+
+async def test_the_reported_balance_is_the_stored_balance_to_the_last_digit(
+    seeded_db: Path, recording_source: RecordingSource
+) -> None:
+    """A buy whose raw balance is not already at 2dp still reports the stored figure.
+
+    Not a duplicate of the test above, which cannot fail: pytest.approx at its
+    default relative tolerance treats a 0.002 gap on roughly 9981 as equal, so
+    it stayed green while the response reported 9980.948 against a stored
+    9980.95. A client that renders the response and then refetches /api/portfolio
+    would see the balance change with no trade behind it.
+
+    0.1 at 190.52 is the diverging case. Three whole shares at the same price
+    gives 9428.44, which is already exactly its own 2dp rounding and would
+    likewise prove nothing.
+    """
+    price_cache = PriceCache()
+    price_cache.update(UNWATCHED, AWKWARD_PRICE)
+
+    result = await execute_trade(seeded_db, price_cache, recording_source, UNWATCHED, "buy", 0.1)
+
+    assert result.cash_balance == 9980.95
+    assert result.cash_balance == _cash(seeded_db)
+
+
+async def test_a_sell_also_reports_the_stored_balance_exactly(
+    seeded_db: Path, recording_source: RecordingSource
+) -> None:
+    """The sell branch computes its one cash figure at storage precision too."""
+    price_cache = PriceCache()
+    price_cache.update(UNWATCHED, AWKWARD_PRICE)
+    await execute_trade(seeded_db, price_cache, recording_source, UNWATCHED, "buy", 0.1)
+
+    result = await execute_trade(seeded_db, price_cache, recording_source, UNWATCHED, "sell", 0.1)
+
+    assert result.cash_balance == _cash(seeded_db)
 
 
 async def test_rejected_buy_rolls_the_whole_unit_back(
@@ -307,6 +353,50 @@ class TestInsufficientCash:
         )
 
         assert result.cash_balance == pytest.approx(0.0)
+
+    async def test_a_buy_for_exactly_the_balance_stores_positive_zero(
+        self, seeded_db: Path, priced_cache: PriceCache, recording_source: RecordingSource
+    ) -> None:
+        """Spending the balance down to nothing stores 0.0, never -0.0.
+
+        A negative zero serializes as -0.0 and renders as $-0.00, which reads to
+        the user as a debt in an account that cannot go negative. Comparing raw
+        cost against raw cash before any rounding is what makes it unreachable.
+        """
+        await execute_trade(
+            seeded_db, priced_cache, recording_source, UNWATCHED, "buy", STARTING_CASH / FILL_PRICE
+        )
+
+        stored = _cash(seeded_db)
+        assert stored == 0.0
+        assert math.copysign(1.0, stored) == 1.0
+
+    async def test_a_sub_cent_overdraft_is_refused_and_nothing_lands(
+        self, seeded_db: Path, recording_source: RecordingSource
+    ) -> None:
+        """A cost over the balance by less than half a cent is still an overdraft.
+
+        The old guard compared round_money(cost) against round_money(cash), so
+        10000.004 against 10000.0 rounded to 10000.0 against 10000.0 and filled.
+        The trade then stored -0.0 and left a position, a watchlist row and a
+        snapshot behind it - a reachable breach of the no-margin rule.
+
+        5000.002 is a legal 4dp quantity, so validate_quantity passes it straight
+        through and the cash guard is genuinely the thing under test.
+        """
+        price_cache = PriceCache()
+        price_cache.update(UNWATCHED, 2.00)
+        snapshots_before = len(_snapshots(seeded_db))
+
+        with pytest.raises(TradeError, match="Insufficient cash"):
+            await execute_trade(
+                seeded_db, price_cache, recording_source, UNWATCHED, "buy", 5000.002
+            )
+
+        assert _cash(seeded_db) == STARTING_CASH
+        assert _rows(seeded_db, "SELECT ticker FROM positions") == []
+        assert _rows(seeded_db, "SELECT ticker FROM watchlist WHERE ticker = ?", UNWATCHED) == []
+        assert len(_snapshots(seeded_db)) == snapshots_before
 
     async def test_buy_for_one_cent_more_than_the_balance_is_refused(
         self, seeded_db: Path, priced_cache: PriceCache, recording_source: RecordingSource
