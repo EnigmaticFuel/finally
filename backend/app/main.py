@@ -14,9 +14,9 @@ from app.api.health import create_health_router
 from app.api.portfolio import create_portfolio_router
 from app.api.watchlist import create_watchlist_router
 from app.config import DB_PATH
-from app.db.seed import DEFAULT_TICKERS
 from app.market import PriceCache, create_market_data_source, create_stream_router
 from app.services.snapshots import snapshot_loop
+from app.services.watchlist import startup_tickers
 
 # Absolute, because app.frontend() resolves `directory` against the process
 # CWD and its check_dir="auto" raises at app-creation time. A relative path
@@ -40,10 +40,10 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Run the market data source and the snapshot recorder for the app's life.
 
-        The streamed tickers are the ones the database seeds the watchlist
-        with, read from the one constant that defines them. Two lists would
-        eventually disagree, and the disagreement would show up as a watchlist
-        row with no price.
+        The streamed tickers are the persisted watchlist, read through
+        startup_tickers. They are the same rows the API serves, so a ticker the
+        user added in an earlier run gets a feed, and there is only one list to
+        disagree with itself.
 
         This lifespan owns both background tasks and cancels both here, so
         nothing outlives the app. The snapshot task stops first because it reads
@@ -52,7 +52,7 @@ def create_app() -> FastAPI:
         already gone. The path comes off this app's own state, which is what
         lets a test fixture point the recorder at a throwaway database.
         """
-        await source.start(list(DEFAULT_TICKERS))
+        await source.start(await startup_tickers(app.state.db_path))
         task = asyncio.create_task(snapshot_loop(app.state.db_path, cache), name="snapshot-loop")
         yield
         task.cancel()
@@ -69,7 +69,7 @@ def create_app() -> FastAPI:
     app.state.db_path = DB_PATH
 
     app.include_router(create_health_router(cache, source))
-    app.include_router(create_portfolio_router(cache))
+    app.include_router(create_portfolio_router(cache, source))
     app.include_router(create_stream_router(cache))
     app.include_router(create_watchlist_router(cache, source))
     app.frontend("/", directory=STATIC_DIR, fallback="index.html")

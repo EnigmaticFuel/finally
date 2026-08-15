@@ -5,9 +5,11 @@ Phase 6's LLM path calls it with the same arguments, so an LLM-supplied quantity
 cannot bypass what a manual one is held to. Its signature is a cross-phase
 contract; see .planning/phases/03-portfolio-watchlist-apis/03-SEAM-CONTRACT.md.
 
-Validation runs cheap checks, then price, then balance: a malformed quantity
-returns immediately rather than after a two-second wait, and the price wait only
-ever runs for input that could actually fill.
+Validation runs cheap checks, then registration, then price, then balance: a
+malformed quantity returns immediately rather than after a two-second wait, the
+traded symbol is registered with the running feed once it is known to be worth
+trading, and the price wait only ever runs for input that could actually fill
+and for a symbol that now has a producer.
 
 The prices used for the trade-time snapshot are captured before the transaction
 opens and passed in as a plain dict, so _apply_trade never touches PriceCache.
@@ -39,7 +41,7 @@ from app.db import (
     upsert_position,
     writing,
 )
-from app.market import PriceCache, normalize_ticker, wait_for_price
+from app.market import MarketDataSource, PriceCache, normalize_ticker, wait_for_price
 
 from .errors import TradeError
 from .portfolio import value_portfolio
@@ -86,6 +88,7 @@ def validate_quantity(quantity: float) -> float:
 async def execute_trade(
     db_path: Path,
     cache: PriceCache,
+    source: MarketDataSource,
     ticker: str,
     side: str,
     quantity: float,
@@ -94,11 +97,19 @@ async def execute_trade(
 
     The published service seam. No FastAPI object crosses it, so Phase 6 passes
     exactly what the router passes.
+
+    source is the running feed the traded symbol is registered with. The seam is
+    symmetric with watchlist.add: both writers that can introduce a new symbol
+    hold the feed they must register it with. Registration precedes the price
+    wait because an unregistered symbol has no producer, so the wait would always
+    expire and trading an unwatched ticker would be unreachable.
     """
     ticker = normalize_ticker(ticker)
     if side not in VALID_SIDES:
         raise TradeError(f"Side must be 'buy' or 'sell', got {side!r}")
     validate_quantity(quantity)
+
+    await source.add_ticker(ticker)
 
     fill_price = await wait_for_price(cache, ticker, timeout=PRICE_WAIT_SECONDS)
     prices = {symbol: update.price for symbol, update in cache.get_all().items()}

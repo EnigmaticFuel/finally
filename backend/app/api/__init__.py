@@ -7,6 +7,8 @@ Public API:
     register_exception_handlers - Map the service error taxonomy onto status codes
 """
 
+from __future__ import annotations
+
 from .errors import register_exception_handlers
 from .health import create_health_router
 from .portfolio import create_portfolio_router

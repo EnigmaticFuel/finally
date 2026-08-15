@@ -18,7 +18,7 @@ from app.db.seed import DEFAULT_TICKERS
 from app.market import PriceCache, create_market_data_source
 from app.market.cache import HISTORY_INTERVAL_SECONDS, HISTORY_POINTS
 from app.services.errors import Conflict, NotFound
-from app.services.watchlist import add, quote, read_watchlist, remove
+from app.services.watchlist import add, quote, read_watchlist, remove, startup_tickers
 
 from .conftest import RecordingSource
 
@@ -243,3 +243,47 @@ class TestRemove:
         """A malformed symbol cannot name a row, so it is a 400 not a 404."""
         with pytest.raises(ValueError, match="Invalid ticker symbol"):
             await remove(db_path, "toolong")
+
+
+class TestStartupTickers:
+    """The persisted watchlist, read the way the lifespan starts the feed from it."""
+
+    async def test_a_fresh_database_returns_the_seeded_tickers_ascending(
+        self, db_path: Path
+    ) -> None:
+        """run_db seeds on first touch, so a first launch reads the ten straight back.
+
+        The expectation is sorted rather than a literal list because get_watchlist
+        orders ascending by ticker, which is not the seed order.
+        """
+        assert await startup_tickers(db_path) == sorted(DEFAULT_TICKERS)
+
+    async def test_a_user_added_ticker_comes_back_with_the_defaults(
+        self, db_path: Path, recording_source: RecordingSource
+    ) -> None:
+        """A ticker added in an earlier run is in the list the next boot starts from."""
+        await add(db_path, recording_source, UNWATCHED)
+
+        tickers = await startup_tickers(db_path)
+
+        assert UNWATCHED in tickers
+        assert tickers == sorted([*DEFAULT_TICKERS, UNWATCHED])
+
+    async def test_an_emptied_watchlist_falls_back_without_re_seeding(
+        self, db_path: Path
+    ) -> None:
+        """The fallback feeds the simulator; it does not restore the user's rows.
+
+        A user who empties their watchlist keeps it empty across restarts, which
+        is why the second assertion matters as much as the first: startup reads
+        and never writes.
+        """
+        for ticker in DEFAULT_TICKERS:
+            await remove(db_path, ticker)
+
+        assert await startup_tickers(db_path) == list(DEFAULT_TICKERS)
+        assert await read_watchlist(db_path, PriceCache()) == []
+
+    async def test_the_returned_values_are_plain_strings(self, db_path: Path) -> None:
+        """The source is handed symbols, not sqlite3.Row objects."""
+        assert all(isinstance(ticker, str) for ticker in await startup_tickers(db_path))

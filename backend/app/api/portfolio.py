@@ -8,7 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from app.db import get_db_path
-from app.market import PriceCache
+from app.market import MarketDataSource, PriceCache
 from app.services import execute_trade
 from app.services.portfolio import get_history, get_portfolio, reset_portfolio
 
@@ -26,11 +26,15 @@ SINCE_DESCRIPTION = (
 )
 
 
-def create_portfolio_router(price_cache: PriceCache) -> APIRouter:
-    """Build the /api/portfolio router bound to a specific cache.
+def create_portfolio_router(price_cache: PriceCache, source: MarketDataSource) -> APIRouter:
+    """Build the /api/portfolio router bound to a specific cache and source.
 
     The router is created inside the factory, not at module level, so calling
     this twice (an app plus a test app) does not register the routes twice.
+
+    The source is held for the same reason create_watchlist_router holds one: a
+    trade can introduce a symbol the feed has never been told about, and it must
+    be registered before anything waits on a price for it.
     """
     router = APIRouter(prefix="/api", tags=["portfolio"])
 
@@ -46,7 +50,7 @@ def create_portfolio_router(price_cache: PriceCache) -> APIRouter:
         into 400/404/409, so this route is only wiring.
         """
         result = await execute_trade(
-            db_path, price_cache, body.ticker, body.side, body.quantity
+            db_path, price_cache, source, body.ticker, body.side, body.quantity
         )
         return TradeResponse(
             ticker=result.ticker,

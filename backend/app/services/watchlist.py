@@ -29,6 +29,7 @@ from app.db.queries import (
     get_watchlist,
     remove_watchlist_ticker,
 )
+from app.db.seed import DEFAULT_TICKERS
 from app.market import MarketDataSource, PriceCache, normalize_ticker
 
 from .errors import Conflict, NotFound
@@ -97,6 +98,28 @@ async def read_watchlist(db_path: Path, cache: PriceCache) -> list[TickerQuote]:
     return [quote(cache, row["ticker"]) for row in rows]
 
 
+# --- Startup ---
+
+
+async def startup_tickers(db_path: Path) -> list[str]:
+    """The tickers the market data source is started from on every boot.
+
+    Reads the frozen query layer and modifies nothing. run_db calls
+    ensure_initialized before the read, so a first launch creates the schema,
+    seeds the ten defaults and reads them straight back through the same door
+    every request uses - there is no second initialization path here.
+
+    The order is get_watchlist's ascending-by-ticker order, not seed order.
+
+    The fallback covers a watchlist the user emptied on purpose. It gives the
+    simulator something to produce so the stream and the health probe stay
+    meaningful, and it writes no watchlist rows, so the empty watchlist stays
+    empty on the next read.
+    """
+    rows = await run_db(db_path, get_watchlist)
+    return [row["ticker"] for row in rows] or list(DEFAULT_TICKERS)
+
+
 # --- Adding ---
 
 
@@ -104,9 +127,9 @@ async def add(db_path: Path, source: MarketDataSource, ticker: str) -> Watchlist
     """Add a ticker to the watchlist and register it with the running feed.
 
     The database write comes first and the source registration second (D-09).
-    The watchlist row is the durable record and the source is started from it on
-    every boot, so a failed registration self-heals on the next start, whereas
-    an orphaned feed would not.
+    The watchlist row is the durable record and startup_tickers starts the source
+    from those rows on every boot, so a failed registration self-heals on the
+    next start, whereas an orphaned feed would not.
 
     An already-watched ticker is a success, not an error: add_watchlist_ticker
     no-ops on conflict, and re-registering with the source is a harmless no-op
@@ -133,8 +156,9 @@ async def remove(db_path: Path, ticker: str) -> None:
 
     Deliberately does not touch the market source (D-08). The simulator keeps
     producing a price for an unwatched ticker until the process restarts, which
-    is harmless: the source is started from the watchlist rows on every boot,
-    and the client renders from this API rather than from the stream's key set.
+    is harmless: startup_tickers starts the source from the watchlist rows on
+    every boot, so the removed ticker is gone from the next run's feed, and the
+    client renders from this API rather than from the stream's key set.
     """
     symbol = normalize_ticker(ticker)
     await run_db(db_path, _remove_checked, symbol)
