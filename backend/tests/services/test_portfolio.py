@@ -123,6 +123,28 @@ class TestValuePortfolio:
         assert positions[0]["unrealized_pnl_percent"] == 0.0
         assert total == 700.0
 
+    def test_a_zero_cost_basis_reports_a_null_percent(self, conn: sqlite3.Connection) -> None:
+        """A zero cost basis has no honest percent, so it reports absent.
+
+        Reachability rests entirely on the frozen market module's price floor,
+        which nothing in this phase pins. It is guarded anyway because the blast
+        radius is the whole read rather than the one position: the division
+        raises inside value_portfolio, which GET /api/portfolio, the trade-time
+        snapshot and the 30-second snapshot loop all share.
+
+        Everything except the ratio stays a real number, and the position still
+        counts toward the total. Only the unreportable figure is absent.
+        """
+        upsert_position(conn, "AAPL", 10.0, 0.0)
+
+        positions, total = value_portfolio(0.0, get_positions(conn), {"AAPL": 110.0})
+
+        assert positions[0]["unrealized_pnl_percent"] is None
+        assert positions[0]["current_price"] == 110.0
+        assert positions[0]["market_value"] == 1100.0
+        assert positions[0]["unrealized_pnl"] == 1100.0
+        assert total == 1100.0
+
     def test_a_priceless_position_is_null_and_excluded(self, conn: sqlite3.Connection) -> None:
         """No price means four nulls and no contribution to the total.
 
@@ -186,6 +208,26 @@ class TestGetPortfolio:
 
         assert payload["positions"][0]["market_value"] == 300.0
         assert payload["total_value"] == STARTING_CASH + 300.0
+
+
+    async def test_a_zero_cost_basis_position_does_not_break_the_read(
+        self, seeded_db: Path
+    ) -> None:
+        """One unreportable ratio does not cost the caller the whole payload.
+
+        Composed rather than pure, because the failure this pins was a 500 on
+        GET /api/portfolio, not a wrong number on one row.
+        """
+        with connect(seeded_db) as connection:
+            upsert_position(connection, "AAPL", 10.0, 0.0)
+        cache = PriceCache()
+        cache.update("AAPL", 110.0)
+
+        payload = await get_portfolio(seeded_db, cache)
+
+        assert set(payload) == {"cash_balance", "total_value", "positions"}
+        assert payload["positions"][0]["unrealized_pnl_percent"] is None
+        assert payload["total_value"] == STARTING_CASH + 1100.0
 
 
 class TestGetHistory:
