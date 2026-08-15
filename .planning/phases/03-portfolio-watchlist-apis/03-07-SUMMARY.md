@@ -203,6 +203,16 @@ None — no external service configuration required.
 - `_log_if_failed` gives the recorder a diagnostic channel it previously lacked. If the P&L chart ever flatlines in a demo, the error log now distinguishes a broken writer from an idle portfolio.
 - Nothing is blocked. Siblings 03-08 and 03-09 executed concurrently in their own worktrees against disjoint file sets; this plan touched neither.
 
+## Self-Check: PASSED
+
+- `backend/app/main.py` — FOUND (modified)
+- `backend/tests/test_main.py` — FOUND (modified)
+- `.planning/phases/03-portfolio-watchlist-apis/03-07-SUMMARY.md` — FOUND
+- Commit `b9dcaca` (Task 1) — FOUND
+- Commit `899fdb9` (Task 2) — FOUND
+- Commit `40c441e` (SUMMARY) — FOUND
+- Working tree clean apart from `.claude/settings.local.json`, which was already modified before this plan started and is not owned by it
+
 ---
 *Phase: 03-portfolio-watchlist-apis*
 *Completed: 2026-08-15*
