@@ -2,49 +2,50 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03
-current_phase_name: portfolio-watchlist-apis
-status: executing
-stopped_at: Phase 03 gap-closure planned — 4 new plans (03-06..03-09) closing all 12 findings
-last_updated: "2026-08-15T12:07:46.496Z"
+current_phase: 4
+current_phase_name: Frontend Shell
+status: planning
+stopped_at: Phase 03 complete — UAT 4/4 passed, verification passed, security verified (threats_open 0)
+last_updated: "2026-08-15T20:30:00.000Z"
 last_activity: 2026-08-15
-last_activity_desc: Phase 03 execution started
+last_activity_desc: Phase 03 complete, transitioned to Phase 4
 progress:
-  total_phases: 3
-  completed_phases: 2
+  total_phases: 7
+  completed_phases: 3
   total_plans: 18
-  completed_plans: 14
+  completed_plans: 18
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-12)
+See: .planning/PROJECT.md (updated 2026-08-15)
 
 **Core value:** The whole loop works as one experience: watch → trade → visualize → chat
-**Current focus:** Phase 03 — portfolio-watchlist-apis
+**Current focus:** Phase 4 — Frontend Shell
 
 ## Current Position
 
-Phase: 03 (portfolio-watchlist-apis) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 03
-0 blockers, all 7 warnings fixed in one revision pass
-Last activity: 2026-08-15 — Phase 03 execution started
+Phase: 4 — Frontend Shell
+Plan: Not started
+Status: Ready to plan
+0 blockers
+Last activity: 2026-08-15 — Phase 03 complete, transitioned to Phase 4
 
-Progress: [███░░░░░░░] 29% (2/7 phases built, 14 of 18 plans complete)
+Progress: [████░░░░░░] 43% (3/7 phases built, 18 of 18 plans complete)
 
-**Do not read the green 351-test suite as proof phase 03 is done.** The PORT-07 test
-passes only because its fixture performs the registration step production lacks.
-Plan 03-06 renames that fixture to `priced_cache` and gates the new test file with
-`grep -c "\.update(" == 0` so it cannot recur.
+Phase 03 closed on 2026-08-15: UAT 4/4 passed, `03-VERIFICATION.md` status `passed`,
+`03-SECURITY.md` written with `threats_open: 0` (57 threats, 26 audited with file:line
+evidence), and all 21 phase-3 requirement IDs marked complete in REQUIREMENTS.md.
+The PORT-07 fixture concern is resolved — 03-06 renamed it to `priced_cache` and the
+grep gate is in place.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
+- Total plans completed: 18
 - Average duration: —
 - Total execution time: 0.0 hours
 
@@ -54,6 +55,7 @@ Plan 03-06 renames that fixture to `priced_cache` and gates the new test file wi
 |-------|-------|-------|----------|
 | 01 | 5 | - | - |
 | 02 | 4 | - | - |
+| 03 | 9 | - | - |
 
 **Recent Trend:**
 
@@ -81,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 3, 2026-08-14]: **Seam contract amended to close G-01** — `execute_trade` gains `source: MarketDataSource`. Symmetric with `watchlist.add` (D-09): both writers that can introduce a new symbol now hold the feed they must register it with. Rejected: a narrow registrar callable (one implementation, pure indirection) and registering in the callers (duplicates the rule; a missed call site silently reopens G-01). Cheap now because Phase 6 is planned against the shape but unbuilt. Recorded in `03-SEAM-CONTRACT.md`.
 - [Phase 3, 2026-08-14]: Gap-closing scope is **gaps plus all review findings** — G-01/02/03, WR-01..04, IN-01..05, then re-verify. Phase 4's frontend should build on a settled API rather than one with known cleanup pending.
 - [Phase 2]: The Dockerfile *build* still has not run on Linux, only the run path. `start_mac.sh` builds only when the image is missing or `--build` is passed, and it reused the Windows-built image. Phase 7 replaces these placeholder build stages and is the natural place to cover it.
+- [Phase 3, 2026-08-15]: **Reset preserves the watchlist and the `trades` audit log** (PORT-14 / CONTEXT D-10), confirmed at UAT. A reset restores $10,000 cash and clears positions only — curated tickers and the append-only history survive, so what was destroyed stays reconstructible.
+- [Phase 3, 2026-08-15]: Security verified at ASVS L1 with `threats_open: 0`. Two structural properties carry the register: every state change runs inside one `writing(conn)` = `BEGIN IMMEDIATE` transaction, and every DB call goes through `run_db` → `asyncio.to_thread` so no handler blocks the SSE event loop.
 
 ### Pending Todos
 
@@ -90,7 +94,7 @@ Recent decisions affecting current work:
 
 - **Accepted risk, not a task:** the project lives inside OneDrive and `db/finally.db` is tracked in git. If `database is locked` appears, this is the cause — diagnose it, but do not plan a relocation or an untracking. See PROJECT.md Key Decisions. *(Phase 1 saw no lock errors: the concurrency suite passes 6-way contention against a real file DB.)*
 - **Unverified:** live structured-output behaviour through OpenRouter → Cerebras. Spike it in Phase 6 before writing the chat router.
-- **[Phase 3] Deferred from Phase 1:** the lazy DB init is wired and proven, but nothing triggers it from an HTTP request yet — `run_db` has no app-side caller until Phase 3's routers land. The seam is complete; no further wiring needed. *(Confirmed live on 2026-08-12: a running container never creates a `-wal` sidecar and `finally.db`'s mtime does not move, because no code path reaches the database yet.)*
+- **[Phase 4] Obligation inherited from Phase 3's accepted risks (AR-03-03):** error bodies are `{"detail": str(exc)}` carrying a service-authored message that echoes the user's submitted string back. The frontend must render `detail` as **text, never as markup**. See `03-SECURITY.md`.
 - **[Phase 6] The `api-coverage` gate was overridden as a false positive for Phase 1.** It fires on the surface nouns `api`/`rest`. Phase 6 is the first phase with genuine external-API integration, and the gate should be honored there.
 
 ## Deferred Items
@@ -104,6 +108,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-08-15
-Stopped at: Phase 03 gap-closure planned — 03-06..03-09 written, checked, revised and committed
-Resume file: .planning/phases/03-portfolio-watchlist-apis/.continue-here.md
-Next action: `/gsd-execute-phase 3` — wave 1 is 03-06 alone, wave 2 is 03-07/08/09 in parallel
+Stopped at: Phase 03 complete, ready to plan Phase 4
+Resume file: None
+Next action: `/gsd-discuss-phase 4` — gather context for the frontend shell

@@ -1,7 +1,7 @@
 ---
 phase: 03-portfolio-watchlist-apis
 verified: 2026-08-15T15:20:00Z
-status: human_needed
+status: passed
 score: 115/115 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -9,20 +9,24 @@ re_verification:
   previous_status: gaps_found
   previous_score: 69/72
   gaps_closed:
+
     - "G-01 / PORT-07 - trading a ticker the market data source has never been told about now fills and joins the watchlist"
     - "G-02 - the lifespan starts the feed from the persisted watchlist, so a user-added ticker keeps its price across a restart"
     - "G-03 - the lifespan reclaims the market source from a finally block, so a dead snapshot task no longer blocks teardown"
   gaps_remaining: []
   regressions: []
   additionally_closed:
+
     - "WR-01 - no exception handler broader than the three-class service taxonomy; the pydantic-leak residual flagged by executor 03-08 is now closed at the REAL site (see P3a/P3b)"
     - "WR-02 - POST /api/portfolio/reset requires a JSON body and refuses form-encoded, bodyless and text/plain"
     - "WR-03 - the trade-time snapshot values the traded ticker at that trade's own fill_price"
     - "WR-04 - reset_portfolio reads its response back through get_portfolio instead of asserting a constant"
     - "IN-01..IN-05 - future annotations, stored-precision cash balance, sub-half-cent overdraft, fixed-decimal share counts, zero-cost-basis null percent"
+
 gaps: []
 deferred: []
 findings:
+
   - id: W-01
     severity: warning
     statement: >
@@ -38,6 +42,7 @@ findings:
       Coverage table below) and should be `[x]` / `Complete`. This is a bookkeeping
       omission, not a code defect - it does not block the phase goal.
     action: "Orchestrator or a docs commit should mark all 21 IDs complete in both places."
+
   - id: W-02
     severity: warning
     statement: >
@@ -50,6 +55,7 @@ findings:
       It is a real pre-existing defect in a frozen module and should be recorded as such
       rather than absorbed into phase 3.
     action: "Record against the market module; do not attribute to phase 3."
+
   - id: I-01
     severity: info
     statement: >
@@ -64,6 +70,7 @@ findings:
       state, not cache state), and it self-heals at the next boot precisely because
       startup_tickers now starts the feed from the persisted rows. It is 03-06's second
       backstop truth, and it is VERIFIED rather than merely asserted.
+
   - id: I-02
     severity: info
     statement: >
@@ -79,6 +86,7 @@ prohibitions_note: >
   recorded are NON-AUTHORITATIVE LLM-judge findings, each flagged
   `unverified-prohibition - human review recommended`. None is a silent pass.
 human_verification:
+
   - test: >
       Run the container with the simulator streaming, hold at least one position, and watch
       GET /api/portfolio (or the header total) across several SSE frames.
@@ -91,23 +99,28 @@ human_verification:
       reconciled exactly, so single-frame live valuation IS verified; what remains human is
       sustained drift over many frames against a running container. Carried from 03-03
       SUMMARY (D6, human_judgment: true).
+
   - test: >
       Confirm the narrow reading of PORT-14's "starting state": reset restores $10,000 cash
       and clears positions while deliberately preserving the watchlist and the append-only
       trades log.
     expected: "The developer agrees a reset should not discard curated tickers or the audit trail (CONTEXT D-10)."
     why_human: "PORT-14 is [NEW] with no PLAN.md text; D-10..D-13 are its whole specification. Product intent, not a code property. Carried from 03-03 SUMMARY (D7)."
+
   - test: "Review the 13 judgment-tier prohibitions in the Prohibitions section and confirm each verdict."
     expected: "Each prohibition is genuinely honored, or is recorded as an accepted deviation."
     why_human: "Judgment-tier prohibitions are a soft gate under autonomous verification; the verdicts recorded are non-authoritative by design."
+
   - test: "Confirm W-01 above and mark all 21 phase-3 requirement IDs complete in .planning/REQUIREMENTS.md."
     expected: "All 21 IDs read `[x]` in the requirements list and `Complete` in the traceability table, matching the phase-1/phase-2 convention."
     why_human: "A ledger write is a decision about phase closure, not a code property. The verifier does not edit REQUIREMENTS.md."
 accepted_risks:
+
   - id: T-03-55
     statement: "portfolio_snapshots grows unbounded on a long-running container - roughly 2880 rows/day for a held portfolio."
     disposition: accept
     note: "Reads are bounded by the ?limit= cap of 5000 (probe-confirmed 422 above it), so this degrades storage, not any response. Re-confirmed on this run."
+
   - id: 03-07-backstop
     statement: >
       A source.stop() that itself raises is deliberately not defended, and reclaiming a
@@ -153,6 +166,7 @@ fixture does. Two structural rules were applied:
    real lifespan through `TestClient`, and lets the real `SimulatorDataSource` be the only price
    producer. `grep` on the probe source confirms no `.update(` call. Every price in the evidence
    below came from the simulator.
+
 2. **The probe uses a different symbol from the phase's own test.** `tests/test_feed_reconciliation.py`
    uses `PYPL`; this probe uses `IBM`, so no coupling to a symbol the implementation might have
    been tuned around.

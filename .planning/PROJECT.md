@@ -37,15 +37,16 @@ It is the capstone project for an agentic AI coding course — built entirely by
 - ✓ Container environment from the root `.env` via `--env-file`, running a single uvicorn worker so there is exactly one price universe — Phase 2
 - ✓ `scripts/smoke_check.py` proving all four Phase 2 success criteria against a real container — Phase 2
 - ✓ Cross-platform script coverage proven on both hosts — the PowerShell pair on Windows and the `.sh` pair on Linux (Ubuntu WSL2, ext4) — Phase 2
+- ✓ Portfolio API — `GET /api/portfolio`, `POST /api/portfolio/trade`, `GET /api/portfolio/history` with `?limit=` (capped at 5000) and `?since=` — Phase 3
+- ✓ Trade execution honoring the full rule set: market orders only, no shorting, no margin, server-side fill price, auto-add-to-watchlist, 2s price wait, immediate snapshot write, position row deleted at zero — Phase 3
+- ✓ Portfolio reset (PORT-14) — restores $10,000 cash and clears positions while preserving the watchlist and the append-only `trades` log — Phase 3
+- ✓ 30-second portfolio snapshot background task that skips unchanged values, reclaimed on lifespan teardown — Phase 3
+- ✓ Watchlist API — `GET/POST /api/watchlist`, `DELETE /api/watchlist/{ticker}` with 409 on held positions and 404 on unknown, wired to `add_ticker`/`remove_ticker` on the market source — Phase 3
 
 ### Active
 
 <!-- Current scope. Build-order steps 2-8 of PLAN.md. -->
 
-- [ ] Portfolio API — `GET /api/portfolio`, `POST /api/portfolio/trade`, `GET /api/portfolio/history`
-- [ ] Trade execution honoring the full rule set: market orders only, no shorting, no margin, server-side fill price, auto-add-to-watchlist, 2s price wait, immediate snapshot write
-- [ ] 30-second portfolio snapshot background task that skips unchanged values
-- [ ] Watchlist API — `GET/POST /api/watchlist`, `DELETE /api/watchlist/{ticker}` with 409 on held positions, wired to `add_ticker`/`remove_ticker` on the market source
 - [ ] Next.js TypeScript frontend as a static export, served by FastAPI on one origin/one port
 - [ ] Frontend shell — dark terminal layout, `EventSource` SSE wiring, watchlist panel with price flash animations, header with live total and connection status dot, trade bar
 - [ ] Client-side live valuation — cash + Σ(quantity × live price) recomputed on every SSE frame, driving header, positions table, heatmap, and the live end of the P&L line
@@ -120,6 +121,9 @@ It is the capstone project for an agentic AI coding course — built entirely by
 | A-05 closed on Ubuntu WSL2 rather than bare-metal Linux or macOS | WSL2 is a genuine Linux kernel on ext4, which is what the test asked for, and `02-VERIFICATION.md` had already named this exact path as the legitimate way to close the gap. Run from a fresh clone in the ext4 home, never `/mnt/c`, whose `drvfs` fabricates a single uniform owner and would not exercise the uid/gid semantics the test exists for | ✓ Good — proven, not reasoned: container `uid=0` alongside uid-1000 mount files, a root-written file landing as uid 0 beside them, and `journal_mode=wal` negotiating over the bind mount |
 | Phase 2's UAT result was corrected forward, not backdated | Test 1 was recorded `skipped` on 2026-08-11 because no POSIX host existed; it became `pass` on 2026-08-12 only after the run actually happened. The superseded `human_verification` frontmatter entries are kept verbatim as the record of why each item was routed to a human | ✓ Good — the ledger never asserted something that had not been executed |
 | The Dockerfile build remains unexercised on Linux | `start_mac.sh` builds only when the image is missing or `--build` is passed, so the Linux run reused the Windows-built `finally-app:latest`. The run path is proven on Linux; the build path is not | ⚠️ Revisit — Phase 7 replaces these placeholder build stages with the real lockfile build and should cover it |
+| `execute_trade` takes the market source as a collaborator | Closes G-01 symmetrically with `watchlist.add` (D-09): both writers that can introduce a new symbol now hold the feed they must register it with. Rejected a narrow registrar callable (one implementation, pure indirection) and registering in the callers (duplicates the rule; a missed call site silently reopens the gap) | ✓ Good — cheap because Phase 6 was planned against the shape but unbuilt |
+| A reset preserves the watchlist and the `trades` audit log | PORT-14's "starting state" means $10,000 cash and no positions — not a wipe. Curated tickers and the append-only history survive, so what was destroyed stays reconstructible. Confirmed as product intent at Phase 3 UAT | ✓ Good |
+| Phase 3 threat IDs left as authored, with the register keyed by (ID, source plan) | The nine plans were written in parallel and six IDs (`T-03-56`..`T-03-61`) each name two different threats. Renumbering would break traceability back to each `<threat_model>` block; a compound key keeps both meanings | ⚠️ Revisit — the collision hid four mitigate threats from the first audit pass; future phases should namespace threat IDs per plan |
 
 ## Evolution
 
@@ -139,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-12 after Phase 2*
+*Last updated: 2026-08-15 after Phase 3*
