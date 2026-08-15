@@ -110,8 +110,8 @@ class TestPortfolioHistory:
         Reset is used rather than a trade so these tests stay independent of the
         trade path. A fresh database carries only the one seed snapshot.
         """
-        client.post("/api/portfolio/reset")
-        client.post("/api/portfolio/reset")
+        client.post("/api/portfolio/reset", json={"confirm": True})
+        client.post("/api/portfolio/reset", json={"confirm": True})
         return client.get("/api/portfolio/history").json()["snapshots"]
 
     def test_snapshots_come_back_newest_first(self, app: FastAPI) -> None:
@@ -182,7 +182,7 @@ class TestResetPortfolioRoute:
         client = TestClient(app)
         self._spend(client, db_path)
 
-        response = client.post("/api/portfolio/reset")
+        response = client.post("/api/portfolio/reset", json={"confirm": True})
 
         assert response.status_code == 200
         assert response.json() == {
@@ -197,12 +197,70 @@ class TestResetPortfolioRoute:
         """The reset body is not cosmetic; GET /api/portfolio agrees with it."""
         client = TestClient(app)
         self._spend(client, db_path)
-        client.post("/api/portfolio/reset")
+        client.post("/api/portfolio/reset", json={"confirm": True})
 
         payload = client.get("/api/portfolio").json()
 
         assert payload["cash_balance"] == STARTING_CASH
         assert payload["positions"] == []
+
+    def test_a_cross_origin_form_post_is_refused(self, app: FastAPI, db_path: Path) -> None:
+        """A form-encoded POST cannot drive the reset, so no cross-origin page can.
+
+        A cross-origin HTML form POST is a CORS simple request: no preflight
+        fires, the browser sends it, and the side effect lands. Requiring a JSON
+        body is what makes the request non-simple. The untouched cash and
+        position are asserted alongside the status, because a refusal that still
+        wiped the account would satisfy a status-only assertion.
+        """
+        client = TestClient(app)
+        self._spend(client, db_path)
+
+        response = client.post("/api/portfolio/reset", data={"confirm": "true"})
+
+        assert response.status_code == 422
+        payload = client.get("/api/portfolio").json()
+        assert payload["cash_balance"] == 1234.56
+        assert len(payload["positions"]) == 1
+
+    def test_a_bodyless_post_is_refused(self, app: FastAPI, db_path: Path) -> None:
+        """A POST carrying nothing at all is refused and changes nothing.
+
+        This is the navigator.sendBeacon and no-cors fetch shape: no body, no
+        content type, and no preflight to answer.
+        """
+        client = TestClient(app)
+        self._spend(client, db_path)
+
+        response = client.post("/api/portfolio/reset")
+
+        assert response.status_code == 422
+        payload = client.get("/api/portfolio").json()
+        assert payload["cash_balance"] == 1234.56
+        assert len(payload["positions"]) == 1
+
+    def test_a_text_plain_body_is_refused(self, app: FastAPI, db_path: Path) -> None:
+        """JSON text under text/plain is refused: the media type is the gate.
+
+        The sharpest of the three vectors, because a cross-origin fetch in
+        no-cors mode may send text/plain carrying a JSON-shaped payload and
+        still be a simple request. FastAPI only parses a body as JSON when the
+        media type is application/json or ends in +json, so this never reaches
+        the model as a mapping.
+        """
+        client = TestClient(app)
+        self._spend(client, db_path)
+
+        response = client.post(
+            "/api/portfolio/reset",
+            content='{"confirm": true}',
+            headers={"Content-Type": "text/plain"},
+        )
+
+        assert response.status_code == 422
+        payload = client.get("/api/portfolio").json()
+        assert payload["cash_balance"] == 1234.56
+        assert len(payload["positions"]) == 1
 
     def test_a_get_does_not_reset_anything(self, app: FastAPI, db_path: Path) -> None:
         """The destructive path is POST only, so navigation cannot trigger it.

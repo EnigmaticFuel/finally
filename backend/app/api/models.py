@@ -27,6 +27,24 @@ class TradeRequest(BaseModel):
     quantity: float
 
 
+class ResetRequest(BaseModel):
+    """POST /api/portfolio/reset body, required so the route is not form-forgeable.
+
+    The route is destructive and unauthenticated, and the app sends no CORS
+    headers and runs no origin check. Requiring a JSON body forces Content-Type
+    application/json, which makes a cross-origin POST a non-simple request: the
+    browser must preflight it, and the preflight goes unanswered. A cross-origin
+    form, which can only send form-encoded, multipart or text/plain, has no way
+    to reach the handler.
+
+    The security property is the requirement of a JSON body, not the value
+    carried in it, so confirm gets no default and its value is never read. D-13
+    keeps confirmation UX in Phase 4's UI.
+    """
+
+    confirm: bool
+
+
 class TradeResponse(BaseModel):
     """A filled trade. fill_price is the server's price, not the client's."""
 

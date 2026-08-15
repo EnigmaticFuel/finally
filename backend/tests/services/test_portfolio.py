@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from app.db.connection import connect
+from app.db.connection import connect, writing
 from app.db.queries import (
     add_watchlist_ticker,
     get_positions,
@@ -123,6 +123,28 @@ class TestValuePortfolio:
         assert positions[0]["unrealized_pnl_percent"] == 0.0
         assert total == 700.0
 
+    def test_a_zero_cost_basis_reports_a_null_percent(self, conn: sqlite3.Connection) -> None:
+        """A zero cost basis has no honest percent, so it reports absent.
+
+        Reachability rests entirely on the frozen market module's price floor,
+        which nothing in this phase pins. It is guarded anyway because the blast
+        radius is the whole read rather than the one position: the division
+        raises inside value_portfolio, which GET /api/portfolio, the trade-time
+        snapshot and the 30-second snapshot loop all share.
+
+        Everything except the ratio stays a real number, and the position still
+        counts toward the total. Only the unreportable figure is absent.
+        """
+        upsert_position(conn, "AAPL", 10.0, 0.0)
+
+        positions, total = value_portfolio(0.0, get_positions(conn), {"AAPL": 110.0})
+
+        assert positions[0]["unrealized_pnl_percent"] is None
+        assert positions[0]["current_price"] == 110.0
+        assert positions[0]["market_value"] == 1100.0
+        assert positions[0]["unrealized_pnl"] == 1100.0
+        assert total == 1100.0
+
     def test_a_priceless_position_is_null_and_excluded(self, conn: sqlite3.Connection) -> None:
         """No price means four nulls and no contribution to the total.
 
@@ -188,6 +210,26 @@ class TestGetPortfolio:
         assert payload["total_value"] == STARTING_CASH + 300.0
 
 
+    async def test_a_zero_cost_basis_position_does_not_break_the_read(
+        self, seeded_db: Path
+    ) -> None:
+        """One unreportable ratio does not cost the caller the whole payload.
+
+        Composed rather than pure, because the failure this pins was a 500 on
+        GET /api/portfolio, not a wrong number on one row.
+        """
+        with connect(seeded_db) as connection:
+            upsert_position(connection, "AAPL", 10.0, 0.0)
+        cache = PriceCache()
+        cache.update("AAPL", 110.0)
+
+        payload = await get_portfolio(seeded_db, cache)
+
+        assert set(payload) == {"cash_balance", "total_value", "positions"}
+        assert payload["positions"][0]["unrealized_pnl_percent"] is None
+        assert payload["total_value"] == STARTING_CASH + 1100.0
+
+
 class TestGetHistory:
     """Bounded snapshot history for the P&L chart."""
 
@@ -242,7 +284,7 @@ class TestResetPortfolio:
 
     async def test_cash_returns_and_every_position_goes(self, loaded_db: Path) -> None:
         """The starting balance is back and nothing is held."""
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         with connect(loaded_db) as connection:
             assert get_profile(connection)["cash_balance"] == STARTING_CASH
@@ -259,7 +301,7 @@ class TestResetPortfolio:
         with connect(loaded_db) as connection:
             before = {row["ticker"] for row in get_watchlist(connection)}
 
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         with connect(loaded_db) as connection:
             after = {row["ticker"] for row in get_watchlist(connection)}
@@ -270,7 +312,7 @@ class TestResetPortfolio:
         """A reset is not a sale, so no synthetic row joins the audit log."""
         before = _count(loaded_db, TRADE_COUNT)
 
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         assert _count(loaded_db, TRADE_COUNT) == before
 
@@ -278,14 +320,14 @@ class TestResetPortfolio:
         """History shows the drop immediately rather than a gap for 30 seconds."""
         before = _count(loaded_db, SNAPSHOT_COUNT)
 
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         assert _count(loaded_db, SNAPSHOT_COUNT) == before + 1
         assert (await get_history(loaded_db, limit=1))[0]["total_value"] == STARTING_CASH
 
     async def test_the_payload_is_the_portfolio_shape(self, loaded_db: Path) -> None:
         """The same three keys GET /api/portfolio returns, so a refetch is uniform."""
-        payload = await reset_portfolio(loaded_db)
+        payload = await reset_portfolio(loaded_db, PriceCache())
 
         assert payload == {
             "cash_balance": STARTING_CASH,
@@ -299,13 +341,40 @@ class TestResetPortfolio:
         The unchanged-value skip belongs to the 30-second task alone, so a second
         row at the same value is correct here.
         """
-        first = await reset_portfolio(loaded_db)
+        first = await reset_portfolio(loaded_db, PriceCache())
         before = _count(loaded_db, SNAPSHOT_COUNT)
 
-        second = await reset_portfolio(loaded_db)
+        second = await reset_portfolio(loaded_db, PriceCache())
 
         assert second == first
         assert _count(loaded_db, SNAPSHOT_COUNT) == before + 1
+
+    async def test_the_body_reports_what_the_transaction_wrote(
+        self, loaded_db: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A wrong reset is visible in the body rather than hidden by it.
+
+        The substitute is deliberately not a reset: it moves the cash to a value
+        that is not the starting cash and leaves both positions in place. A body
+        that restated STARTING_CASH and an empty list would report none of that,
+        which is WR-04's failure mode exactly. This is the only test in the suite
+        that goes red if the read-back is reverted to a constant.
+
+        An empty PriceCache is correct here: the two surviving positions report
+        null valuations, which is the existing null rule and is not what this
+        asserts.
+        """
+
+        def partial_reset(conn: sqlite3.Connection) -> None:
+            with writing(conn):
+                update_cash_balance(conn, SPENT_CASH)
+
+        monkeypatch.setattr("app.services.portfolio._apply_reset", partial_reset)
+
+        payload = await reset_portfolio(loaded_db, PriceCache())
+
+        assert payload["cash_balance"] == SPENT_CASH
+        assert [position["ticker"] for position in payload["positions"]] == ["AAPL", "TSLA"]
 
     async def test_a_failure_part_way_through_commits_nothing(
         self, loaded_db: Path, monkeypatch: pytest.MonkeyPatch
@@ -318,7 +387,7 @@ class TestResetPortfolio:
         monkeypatch.setattr("app.services.portfolio.insert_snapshot", boom)
 
         with pytest.raises(RuntimeError):
-            await reset_portfolio(loaded_db)
+            await reset_portfolio(loaded_db, PriceCache())
 
         with connect(loaded_db) as connection:
             assert len(get_positions(connection)) == 2
