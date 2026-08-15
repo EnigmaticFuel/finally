@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import socket
 import threading
 import time
@@ -23,6 +24,12 @@ from app.market import PriceCache
 
 STARTUP_TIMEOUT = 15.0
 HEALTH_KEYS = {"status", "market_source", "tickers_cached", "newest_price_age_seconds"}
+SNAPSHOT_FAILURE = "snapshot recorder failed"
+
+
+async def _failing_record_snapshot(db_path: Path, cache: PriceCache) -> bool:
+    """Stand in for record_snapshot with the failure the real loop cannot catch."""
+    raise RuntimeError(SNAPSHOT_FAILURE)
 
 
 def _free_port() -> int:
@@ -138,6 +145,60 @@ async def test_lifespan_records_no_snapshot_on_a_short_life(
 
     with connect(db_path) as conn:
         assert len(get_snapshots(conn)) == 1
+
+
+async def test_lifespan_stops_the_source_when_the_snapshot_task_died(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A recorder that died must not be able to strand the market source.
+
+    This test was born red. Before the finally-block teardown landed, cancelling
+    an already-failed task was a no-op, awaiting it re-raised the stored
+    RuntimeError past a handler that only caught cancellation, and source.stop()
+    never ran: the error escaped the lifespan context manager and simulator-loop
+    outlived the app that owned it.
+
+    record_snapshot and the interval are patched in app.services.snapshots rather
+    than in app.main, because main.py imports only snapshot_loop and the loop body
+    resolves both names through its own module globals on every iteration. The
+    real loop therefore runs and really dies, rather than being replaced by a
+    stand-in that never exercised the production arrangement.
+    """
+    monkeypatch.setattr("app.services.snapshots.record_snapshot", _failing_record_snapshot)
+    monkeypatch.setattr("app.services.snapshots.SNAPSHOT_INTERVAL_SECONDS", 0.01)
+
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        async with app.router.lifespan_context(app):
+            deadline = time.monotonic() + 2.0
+            while "snapshot-loop" in _running_task_names() and time.monotonic() < deadline:
+                await asyncio.sleep(0.02)
+
+    assert "simulator-loop" not in _running_task_names()
+    assert "snapshot-loop" not in _running_task_names()
+
+    reports = [record for record in caplog.records if record.name == "app.main"]
+    assert any(
+        record.levelno == logging.ERROR and SNAPSHOT_FAILURE in record.getMessage()
+        for record in reports
+    )
+
+
+async def test_a_clean_shutdown_logs_no_snapshot_failure(
+    app: FastAPI, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An ordinary shutdown stays silent: a cancelled task is not a failed one.
+
+    The assertion filters by logger name rather than reading caplog.records
+    whole. at_level raises the level on the named logger, but caplog's handler
+    still collects every record that propagates to the root, so an unrelated
+    error from the simulator or the database during lifespan would otherwise
+    fail a test that is not about them.
+    """
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        async with app.router.lifespan_context(app):
+            pass
+
+    assert [record for record in caplog.records if record.name == "app.main"] == []
 
 
 def test_cache_via_dependency(app: FastAPI) -> None:
