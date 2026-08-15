@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: portfolio-watchlist-apis
-status: gaps_found
-stopped_at: Phase 03 gap-closing gate — 5/5 plans executed, review + verification found 3 gaps
-last_updated: "2026-08-14T00:00:00.000Z"
-last_activity: 2026-08-14
-last_activity_desc: Session resumed at Phase 03 gap-closing gate
+status: ready_to_execute
+stopped_at: Phase 03 gap-closure planned — 4 new plans (03-06..03-09) closing all 12 findings
+last_updated: "2026-08-15T11:07:23.706Z"
+last_activity: 2026-08-15
+last_activity_desc: gap-closure plans written, checked and revised
 progress:
-  total_phases: 7
+  total_phases: 3
   completed_phases: 2
-  total_plans: 14
+  total_plans: 18
   completed_plans: 14
 ---
 
@@ -27,15 +27,18 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 
 ## Current Position
 
-Phase: 03 (portfolio-watchlist-apis) — GAP-CLOSING GATE
-Plan: 5 of 5 executed; phase not done
-Status: `gaps_found` — verification scored 69/72 must-haves, 3 gaps open (G-01, G-02, G-03)
-Last activity: 2026-08-14 — session resumed at the gap-closing gate
+Phase: 03 (portfolio-watchlist-apis) — GAP CLOSURE PLANNED
+Plan: 5 of 9 executed; 03-06..03-09 written and ready to execute
+Status: `ready_to_execute` — 4 gap-closure plans close all 12 findings, plan-checker returned
+0 blockers, all 7 warnings fixed in one revision pass
+Last activity: 2026-08-15 — gap-closure plans written, checked and revised
 
-Progress: [███░░░░░░░] 29% (2/7 phases built, 14 plans complete)
+Progress: [███░░░░░░░] 29% (2/7 phases built, 14 of 18 plans complete)
 
 **Do not read the green 351-test suite as proof phase 03 is done.** The PORT-07 test
 passes only because its fixture performs the registration step production lacks.
+Plan 03-06 renames that fixture to `priced_cache` and gates the new test file with
+`grep -c "\.update(" == 0` so it cannot recur.
 
 ## Performance Metrics
 
@@ -100,7 +103,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-14
-Stopped at: Seam-contract decision made; ready to plan the phase 03 gaps
+Last session: 2026-08-15
+Stopped at: Phase 03 gap-closure planned — 03-06..03-09 written, checked, revised and committed
 Resume file: .planning/phases/03-portfolio-watchlist-apis/.continue-here.md
-Handoff: .planning/HANDOFF.json (retained until the gaps are planned)
+Next action: `/gsd-execute-phase 3` — wave 1 is 03-06 alone, wave 2 is 03-07/08/09 in parallel

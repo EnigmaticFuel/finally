@@ -115,11 +115,18 @@ Plans:
   5. A user can reset to the starting state: $10,000 cash and no positions.
 
 **Plans**: 5/5 plans executed
+**Wave 1**
 
 - [x] 03-01-PLAN.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [x] 03-02-PLAN.md
 - [x] 03-03-PLAN.md
 - [x] 03-04-PLAN.md
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [x] 03-05-PLAN.md
 
 **Service seam**: `services/trading.execute_trade()` and `services/watchlist.add/remove()` exist because each has two independent callers (manual API and, later, the LLM). Phase 6 must route through these exact functions, so their signatures are a contract.

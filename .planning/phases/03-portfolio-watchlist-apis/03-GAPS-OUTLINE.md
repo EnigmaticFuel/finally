@@ -23,6 +23,44 @@ wave-2 plan, so 03-07, 03-08 and 03-09 execute in parallel safely. 03-06 runs al
 because it is the only plan that may change the `execute_trade` signature and the lifespan's
 ticker source, and every wave-2 plan edits a file it touches.
 
+## Gap-Closure Decisions (D-G01..D-G05)
+
+The `D-G` labels are cited throughout plans 03-06..03-09 but were previously recorded only in
+`.continue-here.md` and `03-SEAM-CONTRACT.md`. Centralized here so the phase audit trail has one
+address. **Nothing below is new** — each is copied from the artifact named in its Source column.
+
+| ID | Decision | Source |
+|---|---|---|
+| D-G01 | `execute_trade` gains a `source: MarketDataSource` parameter, in third position: `execute_trade(db_path, cache, source, ticker, side, quantity)`. Decided by the developer at the phase 03 gap-closing gate in response to G-01 / CR-02 — the function had no way to register a traded symbol with the running feed, so PORT-07 / ROADMAP SC2 was unreachable. Makes the seam symmetric with `watchlist.add`, which already holds a source per D-09. | `03-SEAM-CONTRACT.md` `## Amendment — 2026-08-14 (G-01)`; `.continue-here.md` blocking-constraint 3, marked satisfied 2026-08-14 |
+| D-G02 | Scope of the gap-closure round is the verification gaps **plus all review findings** — twelve findings, each planned exactly once, **no deferrals**. | `03-GAPS-OUTLINE.md` findings-coverage checksum ("Twelve findings, twelve rows, each appearing exactly once. No deferrals (D-G02)") |
+| D-G03 | **Unassigned.** No decision carries this label in any phase artifact. Recorded as a gap in the numbering rather than back-filled — inventing one would be the documents-asserting-what-is-not-true anti-pattern this phase is closing. | — |
+| D-G04 | The snapshot loop **dying loudly is correct** and is mandated by PORT-12's raise-don't-swallow prohibition. G-03's defect is only that the corpse blocks the rest of teardown. No retry, no tolerance band, no downgrade below error level, no broad catch — and `03-REVIEW.md`'s optional suggestion to tolerate a transient database lock inside the loop is explicitly rejected. | `.continue-here.md` `<decisions_made>`; `03-GAPS-OUTLINE.md` line 128 |
+| D-G05 | T-03-55 (unbounded `portfolio_snapshots` growth) is dispositioned **accept** — storage-only degradation, read exposure capped by `HISTORY_MAX_LIMIT = 5000` at `api/portfolio.py:18`. No pruning, no retention policy. | `.continue-here.md` `<decisions_made>` (recorded there under the threat ID T-03-55 rather than the D-G05 label) |
+
+### Prohibition verification tier — one spelling, phase-wide
+
+Every `must_haves.prohibitions` item in 03-06..03-09 uses `verification: test` or
+`verification: judgment`, and no other value. Those two are the values the GSD prohibition schema
+defines (`gsd-core/references/prohibition-probe.md`, "Resolution states"; routed by
+`gsd-core/workflows/verify-phase.md` step "Prohibitions"). The drafts previously used three
+spellings — `judgment` in 03-07, `automated` in 03-06 and 03-08, `deterministic` in 03-09 — and
+neither `automated` nor `deterministic` is in the schema, so those items routed to neither the
+enforced tier nor the judgment tier.
+
+A prohibition whose own statement carries a concrete mechanical check (a grep with an expected
+count, an import-time assertion, a named test that must pass) is `test`. A prohibition that
+records intent no command can settle — "MUST NOT reduce the auto-add rule to a partial version",
+"MUST NOT correct the false docstrings before the behavior matches them" — stays `judgment`.
+
+**Open item for the developer, flagged rather than papered over:** `verify-phase.md` greens a
+`test`-tier prohibition only when it can locate a wired check through the flat-scalar
+`check_kind` / `check_target` / `check_violation_fixture` descriptor, and `check_kind` accepts only
+`node-test` or `lint-rule`. This is a pytest-and-ruff project, so no honest descriptor can be
+authored, and a `test`-tier item with no descriptor **fails closed** (flagged, never green). The
+greps in these prohibitions are real and runnable; what is missing is a descriptor kind that can
+name them. Options are to run the greps manually at re-verification and record the evidence, or to
+raise the `check_kind` gap upstream. No bogus `node-test` descriptor was authored to force a green.
+
 ## Plan Table
 
 | Plan ID | Objective | Wave | Depends On | Requirements | Findings Closed | Files Modified |
