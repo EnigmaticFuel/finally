@@ -35,29 +35,29 @@ Requirements marked **[NEW]** are additions beyond PLAN.md, approved by the user
 
 ### Portfolio
 
-- [ ] **PORT-01**: User can retrieve their portfolio — cash balance, total value, and each position with quantity, avg cost, current price, market value, and unrealized P&L
-- [ ] **PORT-02**: User can buy shares of a ticker at the server's current price, and cash decreases by the fill amount
-- [ ] **PORT-03**: User can sell shares they hold, and cash increases by the fill amount
-- [ ] **PORT-04**: A buy exceeding available cash is rejected with a 400 and a message stating what was needed and what was available
-- [ ] **PORT-05**: A sell exceeding shares held is rejected with a 400 — no shorting
-- [ ] **PORT-06**: A quantity that is zero, negative, `NaN`, `Infinity`, or beyond 4 decimal places is rejected with a 400
-- [ ] **PORT-07**: Trading a ticker that is not on the watchlist adds it to the watchlist as part of the trade
-- [ ] **PORT-08**: A trade on a just-added ticker with no price yet waits up to 2 seconds for a first tick rather than failing immediately
-- [ ] **PORT-09**: A sell that takes a position to zero deletes the position row entirely
-- [ ] **PORT-10**: The trade response reports the server-side `fill_price` actually used, not the price the client sent
-- [ ] **PORT-11**: Every executed trade writes a portfolio snapshot immediately
-- [ ] **PORT-12**: A background task snapshots portfolio value every 30 seconds, skipping the write when total value is unchanged
-- [ ] **PORT-13**: User can retrieve portfolio value history with `?limit=` and `?since=` query parameters
-- [ ] **PORT-14**: User can reset their portfolio to the starting state — $10,000 cash, no positions **[NEW]**
+- [x] **PORT-01**: User can retrieve their portfolio — cash balance, total value, and each position with quantity, avg cost, current price, market value, and unrealized P&L
+- [x] **PORT-02**: User can buy shares of a ticker at the server's current price, and cash decreases by the fill amount
+- [x] **PORT-03**: User can sell shares they hold, and cash increases by the fill amount
+- [x] **PORT-04**: A buy exceeding available cash is rejected with a 400 and a message stating what was needed and what was available
+- [x] **PORT-05**: A sell exceeding shares held is rejected with a 400 — no shorting
+- [x] **PORT-06**: A quantity that is zero, negative, `NaN`, `Infinity`, or beyond 4 decimal places is rejected with a 400
+- [x] **PORT-07**: Trading a ticker that is not on the watchlist adds it to the watchlist as part of the trade
+- [x] **PORT-08**: A trade on a just-added ticker with no price yet waits up to 2 seconds for a first tick rather than failing immediately
+- [x] **PORT-09**: A sell that takes a position to zero deletes the position row entirely
+- [x] **PORT-10**: The trade response reports the server-side `fill_price` actually used, not the price the client sent
+- [x] **PORT-11**: Every executed trade writes a portfolio snapshot immediately
+- [x] **PORT-12**: A background task snapshots portfolio value every 30 seconds, skipping the write when total value is unchanged
+- [x] **PORT-13**: User can retrieve portfolio value history with `?limit=` and `?since=` query parameters
+- [x] **PORT-14**: User can reset their portfolio to the starting state — $10,000 cash, no positions **[NEW]**
 
 ### Watchlist
 
-- [ ] **WATCH-01**: User can retrieve the watchlist with each ticker's latest price, open price, change from open, and ~60 points of history for sparklines
-- [ ] **WATCH-02**: User can add a ticker, validated by the shared `^[A-Z]{1,5}$` rule after uppercasing, rejected with a 400 otherwise
-- [ ] **WATCH-03**: Adding a ticker registers it with the live market data source so it starts producing prices
-- [ ] **WATCH-04**: User can remove a ticker they hold no position in
-- [ ] **WATCH-05**: Removing a ticker with an open position is rejected with a 409 and a message the user can read verbatim
-- [ ] **WATCH-06**: Removing a ticker that is not on the watchlist returns a 404
+- [x] **WATCH-01**: User can retrieve the watchlist with each ticker's latest price, open price, change from open, and ~60 points of history for sparklines
+- [x] **WATCH-02**: User can add a ticker, validated by the shared `^[A-Z]{1,5}$` rule after uppercasing, rejected with a 400 otherwise
+- [x] **WATCH-03**: Adding a ticker registers it with the live market data source so it starts producing prices
+- [x] **WATCH-04**: User can remove a ticker they hold no position in
+- [x] **WATCH-05**: Removing a ticker with an open position is rejected with a 409 and a message the user can read verbatim
+- [x] **WATCH-06**: Removing a ticker that is not on the watchlist returns a 404
 
 ### Frontend Shell
 
@@ -117,7 +117,7 @@ Requirements marked **[NEW]** are additions beyond PLAN.md, approved by the user
 ### Testing
 
 - [x] **TEST-01**: Backend tests cover database initialization, seeding, and the money/quantity rounding rules
-- [ ] **TEST-02**: Backend tests cover trade execution and every rejection path — insufficient cash, insufficient shares, invalid quantity, position deletion at zero
+- [x] **TEST-02**: Backend tests cover trade execution and every rejection path — insufficient cash, insufficient shares, invalid quantity, position deletion at zero
 - [ ] **TEST-03**: Backend tests cover LLM structured-output parsing, including malformed and schema-violating responses
 - [ ] **TEST-04**: Backend tests cover every API route's status codes and response shapes
 - [ ] **TEST-05**: Frontend tests cover component rendering, price flash behavior, watchlist operations, portfolio math, and chat rendering
@@ -192,27 +192,27 @@ Deferred. Tracked but not in the current roadmap.
 | DOCK-05 | Phase 2 | Complete |
 | DOCK-06 | Phase 2 | Complete |
 | DOCK-07 | Phase 2 | Complete |
-| PORT-01 | Phase 3 | Pending |
-| PORT-02 | Phase 3 | Pending |
-| PORT-03 | Phase 3 | Pending |
-| PORT-04 | Phase 3 | Pending |
-| PORT-05 | Phase 3 | Pending |
-| PORT-06 | Phase 3 | Pending |
-| PORT-07 | Phase 3 | Pending |
-| PORT-08 | Phase 3 | Pending |
-| PORT-09 | Phase 3 | Pending |
-| PORT-10 | Phase 3 | Pending |
-| PORT-11 | Phase 3 | Pending |
-| PORT-12 | Phase 3 | Pending |
-| PORT-13 | Phase 3 | Pending |
-| PORT-14 | Phase 3 | Pending |
-| WATCH-01 | Phase 3 | Pending |
-| WATCH-02 | Phase 3 | Pending |
-| WATCH-03 | Phase 3 | Pending |
-| WATCH-04 | Phase 3 | Pending |
-| WATCH-05 | Phase 3 | Pending |
-| WATCH-06 | Phase 3 | Pending |
-| TEST-02 | Phase 3 | Pending |
+| PORT-01 | Phase 3 | Complete |
+| PORT-02 | Phase 3 | Complete |
+| PORT-03 | Phase 3 | Complete |
+| PORT-04 | Phase 3 | Complete |
+| PORT-05 | Phase 3 | Complete |
+| PORT-06 | Phase 3 | Complete |
+| PORT-07 | Phase 3 | Complete |
+| PORT-08 | Phase 3 | Complete |
+| PORT-09 | Phase 3 | Complete |
+| PORT-10 | Phase 3 | Complete |
+| PORT-11 | Phase 3 | Complete |
+| PORT-12 | Phase 3 | Complete |
+| PORT-13 | Phase 3 | Complete |
+| PORT-14 | Phase 3 | Complete |
+| WATCH-01 | Phase 3 | Complete |
+| WATCH-02 | Phase 3 | Complete |
+| WATCH-03 | Phase 3 | Complete |
+| WATCH-04 | Phase 3 | Complete |
+| WATCH-05 | Phase 3 | Complete |
+| WATCH-06 | Phase 3 | Complete |
+| TEST-02 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Pending |
 | UI-02 | Phase 4 | Pending |
 | UI-03 | Phase 4 | Pending |
@@ -282,4 +282,4 @@ Three requirements are owned by one phase but visibly completed by the next. Rec
 
 ---
 *Requirements defined: 2026-08-05*
-*Last updated: 2026-08-05 after roadmap creation*
+*Last updated: 2026-08-15 after phase 3 UAT*
