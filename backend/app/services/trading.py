@@ -103,15 +103,30 @@ async def execute_trade(
     hold the feed they must register it with. Registration precedes the price
     wait because an unregistered symbol has no producer, so the wait would always
     expire and trading an unwatched ticker would be unreachable.
+
+    Two calls are wrapped, and both wrap exactly one named call each. This is
+    translation at a boundary, not defensive programming: normalize_ticker and
+    wait_for_price live in the frozen app/market/ module and raise the plain
+    ValueError Phase 1's style used, each with a documented user-facing message.
+    Converting them into the taxonomy here is what lets a ValueError reaching the
+    router mean a defect rather than a user error. Nothing else is wrapped -
+    validate_quantity already raises TradeError, and a wider block would report a
+    genuine fault inside the transaction as a 400.
     """
-    ticker = normalize_ticker(ticker)
+    try:
+        ticker = normalize_ticker(ticker)
+    except ValueError as exc:
+        raise TradeError(str(exc)) from exc
     if side not in VALID_SIDES:
         raise TradeError(f"Side must be 'buy' or 'sell', got {side!r}")
     validate_quantity(quantity)
 
     await source.add_ticker(ticker)
 
-    fill_price = await wait_for_price(cache, ticker, timeout=PRICE_WAIT_SECONDS)
+    try:
+        fill_price = await wait_for_price(cache, ticker, timeout=PRICE_WAIT_SECONDS)
+    except ValueError as exc:
+        raise TradeError(str(exc)) from exc
     prices = {symbol: update.price for symbol, update in cache.get_all().items()}
 
     filled = await run_db(db_path, _apply_trade, ticker, side, quantity, fill_price, prices)
