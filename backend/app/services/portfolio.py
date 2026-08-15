@@ -43,6 +43,11 @@ def value_portfolio(
     A position whose ticker has no price reports nulls and is excluded from the
     total, so the client renders a dash rather than a fabricated number. Zero is
     a real price a client will happily multiply; absent is not.
+
+    A zero cost basis reports a null percent for the same reason: there is no
+    honest ratio to report, so absent reads as absent. The test is on the cost
+    basis rather than the profit and loss, so a break-even position still
+    reports 0.0, and everything except the ratio stays a real number.
     """
     rows: list[dict[str, object]] = []
     total = cash
@@ -77,7 +82,9 @@ def value_portfolio(
                 "current_price": price,
                 "market_value": market_value,
                 "unrealized_pnl": market_value - cost_basis,
-                "unrealized_pnl_percent": (market_value - cost_basis) / cost_basis * 100,
+                "unrealized_pnl_percent": (
+                    None if cost_basis == 0 else (market_value - cost_basis) / cost_basis * 100
+                ),
             }
         )
         total += market_value
