@@ -63,12 +63,18 @@ def create_app() -> FastAPI:
         user added in an earlier run gets a feed, and there is only one list to
         disagree with itself.
 
-        This lifespan owns both background tasks and cancels both here, so
-        nothing outlives the app. The snapshot task stops first because it reads
-        prices from the cache the source writes: cancelling it before the source
+        This lifespan owns both background tasks and reclaims both from a
+        finally block, so nothing outlives the app however the snapshot task
+        ended - including a recorder that died of a database error rather than
+        of cancellation, which used to re-raise here and skip the stop below.
+        The snapshot task is still reclaimed before the source is stopped,
+        because it reads prices from the cache the source writes: that order
         leaves no window where a live recorder reads a cache whose producer has
-        already gone. The path comes off this app's own state, which is what
-        lets a test fixture point the recorder at a throwaway database.
+        already gone. A recorder that fails is meant to die, per PORT-12, and
+        _log_if_failed reports that death at error level when it happens; the
+        finally is here to stop the corpse blocking the rest of teardown, not to
+        keep the loop alive. The path comes off this app's own state, which is
+        what lets a test fixture point the recorder at a throwaway database.
         """
         await source.start(await startup_tickers(app.state.db_path))
         task = asyncio.create_task(snapshot_loop(app.state.db_path, cache), name="snapshot-loop")
