@@ -581,10 +581,12 @@ class TestPriceWait:
     ) -> None:
         """The cache's own message, naming the ticker, reaches the caller unchanged.
 
-        This surfaces as a bare ValueError rather than a TradeError, and reaches
-        400 through the bare-ValueError handler. The message fragment is what is
-        asserted: TradeError subclasses ValueError, so catching the type alone
-        would also pass if the quantity validator had fired instead.
+        wait_for_price raises a plain ValueError, which execute_trade translates
+        into TradeError at the seam, so this reaches 400 through the taxonomy's
+        own row rather than through a handler on the built-in class. The message
+        fragment is what is asserted: TradeError subclasses ValueError, so
+        catching the type alone would also pass if the quantity validator had
+        fired instead.
 
         The registration assertion pins the other half: the symbol was offered to
         the feed before the wait began, so the expiry is a source that genuinely
