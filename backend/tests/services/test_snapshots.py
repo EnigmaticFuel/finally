@@ -34,6 +34,7 @@ from app.services.snapshots import (
     snapshot_loop,
 )
 from app.services.trading import execute_trade
+from tests.services.conftest import RecordingSource
 
 TICKER = "AAPL"
 PRECISE_QUANTITY = 1.2345
@@ -215,7 +216,7 @@ class TestTradeCollision:
     """The recorder against the other writer of the same rows."""
 
     async def test_a_concurrent_trade_never_leaves_a_total_never_held(
-        self, seeded_db: Path
+        self, seeded_db: Path, recording_source: RecordingSource
     ) -> None:
         """Neither writer errors, and no snapshot records a state in between.
 
@@ -235,7 +236,7 @@ class TestTradeCollision:
 
         for _ in range(COLLISION_ROUNDS):
             await asyncio.gather(
-                execute_trade(seeded_db, cache, TICKER, "buy", 1.0),
+                execute_trade(seeded_db, cache, recording_source, TICKER, "buy", 1.0),
                 record_snapshot(seeded_db, cache),
             )
 

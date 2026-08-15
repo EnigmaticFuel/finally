@@ -69,7 +69,7 @@ def create_app() -> FastAPI:
     app.state.db_path = DB_PATH
 
     app.include_router(create_health_router(cache, source))
-    app.include_router(create_portfolio_router(cache))
+    app.include_router(create_portfolio_router(cache, source))
     app.include_router(create_stream_router(cache))
     app.include_router(create_watchlist_router(cache, source))
     app.frontend("/", directory=STATIC_DIR, fallback="index.html")
