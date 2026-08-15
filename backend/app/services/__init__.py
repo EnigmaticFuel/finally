@@ -23,6 +23,7 @@ Public API:
     remove                    - Remove a ticker from the watchlist, refusing while a position is held
     reset_portfolio           - Return cash and positions to the starting state
     snapshot_loop             - The background task recording value every 30 seconds
+    startup_tickers           - The persisted watchlist the feed is started from on every boot
     validate_quantity         - The one share-quantity rule, shared by every caller
     value_portfolio           - Pure per-position figures and portfolio total
 
@@ -33,11 +34,21 @@ says nothing about what is being added. That is also how the ROADMAP names them
 for Phase 6.
 """
 
+from __future__ import annotations
+
 from .errors import Conflict, NotFound, TradeError
 from .portfolio import get_history, get_portfolio, reset_portfolio, value_portfolio
 from .snapshots import SNAPSHOT_INTERVAL_SECONDS, record_snapshot, snapshot_loop
 from .trading import TradeResult, execute_trade, validate_quantity
-from .watchlist import TickerQuote, WatchlistEntry, add, quote, read_watchlist, remove
+from .watchlist import (
+    TickerQuote,
+    WatchlistEntry,
+    add,
+    quote,
+    read_watchlist,
+    remove,
+    startup_tickers,
+)
 
 __all__ = [
     "Conflict",
@@ -57,6 +68,7 @@ __all__ = [
     "remove",
     "reset_portfolio",
     "snapshot_loop",
+    "startup_tickers",
     "validate_quantity",
     "value_portfolio",
 ]
