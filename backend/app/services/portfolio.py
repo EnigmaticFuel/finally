@@ -151,8 +151,9 @@ def _apply_reset(conn: sqlite3.Connection) -> None:
     The recorded value is STARTING_CASH because nothing is held by then, and
     value_portfolio(STARTING_CASH, [], prices) returns exactly STARTING_CASH for
     any prices mapping - the one valuation rule is satisfied here rather than
-    bypassed, which is also why this path takes no cache: an unused collaborator
-    argument would be a lie about the dependency.
+    bypassed. This function still takes only the connection because it is the
+    transaction and nothing more; the cache belongs to reset_portfolio, whose
+    response is a read.
 
     Nothing outside the positions table and the profile cash balance is touched.
     The watchlist, the append-only trades log and chat_messages survive: a user
@@ -167,13 +168,18 @@ def _apply_reset(conn: sqlite3.Connection) -> None:
         insert_snapshot(conn, STARTING_CASH)
 
 
-async def reset_portfolio(db_path: Path) -> dict[str, object]:
-    """Return the portfolio to its starting state and report the result.
+async def reset_portfolio(db_path: Path, cache: PriceCache) -> dict[str, object]:
+    """Return the portfolio to its starting state and report what was written.
 
-    The body is the same three keys get_portfolio returns, so the client's
-    post-action refetch rule needs no special case. The snapshot is always
-    written: the unchanged-value skip is the 30-second task's rule alone, so a
-    second consecutive reset correctly appends a second row at the same value.
+    The body is read back through get_portfolio rather than asserted, so there
+    is one definition of what a portfolio response is and the client's
+    post-action refetch rule needs no special case. A constant that happens to
+    match cannot report a regression: a future partial reset, a retained
+    position or a fee would show up here instead of being papered over.
+
+    The snapshot is always written: the unchanged-value skip is the 30-second
+    task's rule alone, so a second consecutive reset correctly appends a second
+    row at the same value.
     """
     await run_db(db_path, _apply_reset)
-    return {"cash_balance": STARTING_CASH, "total_value": STARTING_CASH, "positions": []}
+    return await get_portfolio(db_path, cache)

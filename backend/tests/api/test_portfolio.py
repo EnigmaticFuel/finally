@@ -110,8 +110,8 @@ class TestPortfolioHistory:
         Reset is used rather than a trade so these tests stay independent of the
         trade path. A fresh database carries only the one seed snapshot.
         """
-        client.post("/api/portfolio/reset")
-        client.post("/api/portfolio/reset")
+        client.post("/api/portfolio/reset", json={"confirm": True})
+        client.post("/api/portfolio/reset", json={"confirm": True})
         return client.get("/api/portfolio/history").json()["snapshots"]
 
     def test_snapshots_come_back_newest_first(self, app: FastAPI) -> None:
@@ -182,7 +182,7 @@ class TestResetPortfolioRoute:
         client = TestClient(app)
         self._spend(client, db_path)
 
-        response = client.post("/api/portfolio/reset")
+        response = client.post("/api/portfolio/reset", json={"confirm": True})
 
         assert response.status_code == 200
         assert response.json() == {
@@ -197,7 +197,7 @@ class TestResetPortfolioRoute:
         """The reset body is not cosmetic; GET /api/portfolio agrees with it."""
         client = TestClient(app)
         self._spend(client, db_path)
-        client.post("/api/portfolio/reset")
+        client.post("/api/portfolio/reset", json={"confirm": True})
 
         payload = client.get("/api/portfolio").json()
 

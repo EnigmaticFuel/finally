@@ -12,7 +12,13 @@ from app.market import MarketDataSource, PriceCache
 from app.services import execute_trade
 from app.services.portfolio import get_history, get_portfolio, reset_portfolio
 
-from .models import HistoryResponse, PortfolioResponse, TradeRequest, TradeResponse
+from .models import (
+    HistoryResponse,
+    PortfolioResponse,
+    ResetRequest,
+    TradeRequest,
+    TradeResponse,
+)
 
 HISTORY_DEFAULT_LIMIT = 500
 HISTORY_MAX_LIMIT = 5000
@@ -96,19 +102,25 @@ def create_portfolio_router(price_cache: PriceCache, source: MarketDataSource) -
 
     @router.post("/portfolio/reset", response_model=PortfolioResponse)
     async def reset(
+        body: ResetRequest,
         db_path: Annotated[Path, Depends(get_db_path)],
     ) -> PortfolioResponse:
         """Return cash to the starting balance and clear every position.
 
-        POST only, with no body and no confirmation token. Being reachable by
-        navigation, link prefetch or a crawler is the failure mode that matters
-        for a destructive endpoint; the confirmation step belongs to the UI,
-        where the user actually clicks.
+        POST only, which closes navigation, link prefetch and crawlers. It does
+        not close the vector those arguments miss: a cross-origin HTML form POST
+        is a CORS simple request, fires no preflight, and lands the side effect
+        from any tab open while the container runs. The required JSON body is
+        what closes it - a form can only send form-encoded, multipart or
+        text/plain, none of which reach this handler.
+
+        The field's value is never read. D-13 puts confirmation UX in Phase 4's
+        UI; a server-side check on it would be the API-level guard D-13 refused.
 
         The watchlist and the append-only trades log survive, so what was cleared
         stays reconstructible.
         """
-        payload = await reset_portfolio(db_path)
+        payload = await reset_portfolio(db_path, price_cache)
         return PortfolioResponse(**payload)
 
     return router

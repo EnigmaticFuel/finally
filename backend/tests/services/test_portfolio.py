@@ -242,7 +242,7 @@ class TestResetPortfolio:
 
     async def test_cash_returns_and_every_position_goes(self, loaded_db: Path) -> None:
         """The starting balance is back and nothing is held."""
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         with connect(loaded_db) as connection:
             assert get_profile(connection)["cash_balance"] == STARTING_CASH
@@ -259,7 +259,7 @@ class TestResetPortfolio:
         with connect(loaded_db) as connection:
             before = {row["ticker"] for row in get_watchlist(connection)}
 
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         with connect(loaded_db) as connection:
             after = {row["ticker"] for row in get_watchlist(connection)}
@@ -270,7 +270,7 @@ class TestResetPortfolio:
         """A reset is not a sale, so no synthetic row joins the audit log."""
         before = _count(loaded_db, TRADE_COUNT)
 
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         assert _count(loaded_db, TRADE_COUNT) == before
 
@@ -278,14 +278,14 @@ class TestResetPortfolio:
         """History shows the drop immediately rather than a gap for 30 seconds."""
         before = _count(loaded_db, SNAPSHOT_COUNT)
 
-        await reset_portfolio(loaded_db)
+        await reset_portfolio(loaded_db, PriceCache())
 
         assert _count(loaded_db, SNAPSHOT_COUNT) == before + 1
         assert (await get_history(loaded_db, limit=1))[0]["total_value"] == STARTING_CASH
 
     async def test_the_payload_is_the_portfolio_shape(self, loaded_db: Path) -> None:
         """The same three keys GET /api/portfolio returns, so a refetch is uniform."""
-        payload = await reset_portfolio(loaded_db)
+        payload = await reset_portfolio(loaded_db, PriceCache())
 
         assert payload == {
             "cash_balance": STARTING_CASH,
@@ -299,10 +299,10 @@ class TestResetPortfolio:
         The unchanged-value skip belongs to the 30-second task alone, so a second
         row at the same value is correct here.
         """
-        first = await reset_portfolio(loaded_db)
+        first = await reset_portfolio(loaded_db, PriceCache())
         before = _count(loaded_db, SNAPSHOT_COUNT)
 
-        second = await reset_portfolio(loaded_db)
+        second = await reset_portfolio(loaded_db, PriceCache())
 
         assert second == first
         assert _count(loaded_db, SNAPSHOT_COUNT) == before + 1
@@ -318,7 +318,7 @@ class TestResetPortfolio:
         monkeypatch.setattr("app.services.portfolio.insert_snapshot", boom)
 
         with pytest.raises(RuntimeError):
-            await reset_portfolio(loaded_db)
+            await reset_portfolio(loaded_db, PriceCache())
 
         with connect(loaded_db) as connection:
             assert len(get_positions(connection)) == 2
